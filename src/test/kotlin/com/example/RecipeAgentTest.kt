@@ -14,11 +14,19 @@ import org.http4k.ai.a2a.model.ResponseStream
 import org.http4k.ai.a2a.model.Task
 import org.http4k.ai.a2a.model.TaskState.TASK_STATE_COMPLETED
 import org.http4k.ai.a2a.model.TaskState.TASK_STATE_WORKING
+import org.http4k.filter.debug
+import org.http4k.routing.reverseProxy
 import org.junit.jupiter.api.Test
 
 class RecipeAgentTest {
 
-    private val client = App().testA2AJsonRpcClient()
+    private val mealApiServer = FakeMealApiServer()
+    private val app = App(
+        outgoing = reverseProxy(
+            mealApiServer.uri.authority to mealApiServer
+        )
+    )
+    private val client = app.testA2AJsonRpcClient()
 
     @Test
     fun `agent card is discoverable`() {
@@ -28,7 +36,7 @@ class RecipeAgentTest {
     @Test
     fun `agent returns streaming task updates`() {
         val response = client.messageStream(
-            Message(MessageId.of("test-msg"), ROLE_USER, listOf(Part.Text("pasta")))
+            Message(MessageId.of("test-msg"), ROLE_USER, listOf(Part.Text("Carbonara")))
         ).valueOrNull()!! as ResponseStream
 
         val items = response.toList()

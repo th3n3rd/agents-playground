@@ -16,7 +16,9 @@ import org.http4k.ai.a2a.model.TaskState.TASK_STATE_COMPLETED
 import org.http4k.ai.a2a.model.TaskState.TASK_STATE_WORKING
 import org.http4k.ai.a2a.model.TaskStatus
 import org.http4k.ai.a2a.model.Version
+import org.http4k.client.JavaHttpClient
 import org.http4k.connect.model.MimeType
+import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.core.then
 import org.http4k.filter.DebuggingFilters.PrintRequest
@@ -49,7 +51,9 @@ val recipeAgentCard = AgentCard(
 )
 
 object App {
-    operator fun invoke(): PolyHandler {
+    operator fun invoke(outgoing: HttpHandler = JavaHttpClient()): PolyHandler {
+        val recipes = MealApiRecipes(outgoing)
+
         return a2aJsonRpc(recipeAgentCard, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
             val taskId = TaskId.of(UUID.randomUUID().toString())
@@ -64,20 +68,26 @@ object App {
                         history = listOf(request.message)
                     )
                 )
-                yield(
-                    Task(
-                        id = taskId,
-                        status = TaskStatus(
-                            state = TASK_STATE_COMPLETED,
-                            message = Message(
-                                messageId = MessageId.random(),
-                                role = ROLE_AGENT,
-                                parts = listOf(Part.Text("Found recipes for: $query\n\n1. Pasta Carbonara\n2. Tomato Basil Soup\n3. Grilled Vegetables"))
+
+                recipes.findAllBy(query)
+                    .mapIndexed { index, recipe -> "${index + 1} ${recipe.name}" }
+                    .joinToString("\n")
+                    .let {
+                        yield(
+                            Task(
+                                id = taskId,
+                                status = TaskStatus(
+                                    state = TASK_STATE_COMPLETED,
+                                    message = Message(
+                                        messageId = MessageId.random(),
+                                        role = ROLE_AGENT,
+                                        parts = listOf(Part.Text("Found recipes for: $query\n\n$it"))
+                                    )
+                                ),
+                                contextId = contextId
                             )
-                        ),
-                        contextId = contextId
-                    )
-                )
+                        )
+                    }
             })
         })
     }

@@ -8,12 +8,18 @@ import org.http4k.ai.a2a.model.MessageId
 import org.http4k.ai.a2a.model.Part
 import org.http4k.ai.a2a.model.ResponseStream
 import org.http4k.core.Uri
+import org.http4k.routing.reverseProxy
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
 
 fun main() {
     // start the A2A server
-    val server = App().asServer(Jetty(9000)).start()
+    val mealApiServer = FakeMealApiServer()
+    val server = App(
+        outgoing = reverseProxy(
+            mealApiServer.uri.authority to mealApiServer
+        )
+    ).asServer(Jetty(9000)).start()
 
     // create a client and start the connection
     HttpA2AClient(Uri.of("http://localhost:9000")).use { client ->
