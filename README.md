@@ -15,8 +15,11 @@ Tests run fully in-memory — no network, no ports.
 - The Agent itself should be "dumb", i.e. not actually executing capabilities
   - Skills are not explicitly invoked, so it's not easy to understand in code how we would handle a given request
   - Message will be delegated to an LLM for processing
+  - The agent provides the LLMs also all the available tools definitions
   - LLMs will then interpret the intent and decide whether an MCP capability, e.g. tool, needs to be invoked
+  - Once the LLM decides is the agent which will invoke the MCP capability
   - The business logic lives on the MCP side, not the Agent side
+  - Once the result are available it will delegate once again to the LLMs in order to get a final answer
 
 - Agent responses are typically streamed
 
