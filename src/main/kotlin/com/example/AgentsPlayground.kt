@@ -20,12 +20,9 @@ import org.http4k.ai.a2a.model.TaskStatus
 import org.http4k.ai.a2a.model.Version
 import org.http4k.ai.mcp.ToolRequest
 import org.http4k.ai.mcp.ToolResponse
-import org.http4k.ai.mcp.model.Tool
-import org.http4k.ai.mcp.model.string
 import org.http4k.ai.mcp.protocol.ServerMetaData
 import org.http4k.ai.mcp.server.security.NoMcpSecurity
 import org.http4k.ai.mcp.testing.testMcpClient
-import org.http4k.ai.model.ToolName
 import org.http4k.client.JavaHttpClient
 import org.http4k.connect.model.MimeType
 import org.http4k.core.HttpHandler
@@ -34,7 +31,6 @@ import org.http4k.core.then
 import org.http4k.filter.DebuggingFilters.PrintRequest
 import org.http4k.lens.with
 import org.http4k.routing.a2aJsonRpc
-import org.http4k.routing.bind
 import org.http4k.routing.mcp
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
@@ -63,23 +59,6 @@ val recipeAgentCard = AgentCard(
         )
     )
 )
-
-object SearchRecipesTool {
-    val name = ToolName.of("search_recipes")
-    val query = Tool.Arg.string().required("query")
-
-    operator fun invoke(recipes: Recipes) = Tool(
-        name.value,
-        "Search recipes",
-        query
-    ) bind {
-        ToolResponse.Ok(
-            recipes.findAllBy(query(it))
-                .mapIndexed { index, recipe -> "${index + 1} ${recipe.name}" }
-                .joinToString("\n")
-        )
-    }
-}
 
 object App {
     operator fun invoke(outgoing: HttpHandler = JavaHttpClient()): PolyHandler {
