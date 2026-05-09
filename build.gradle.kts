@@ -65,6 +65,9 @@ dependencies {
 
     implementation(platform(libs.http4k.bom))
     implementation(libs.http4k.ai.sdk)
+    implementation(libs.http4k.ai.mcp.sdk)
+    implementation(libs.http4k.ai.mcp.client)
+    implementation(libs.http4k.ai.mcp.testing)
     implementation(libs.http4k.config)
     implementation(libs.http4k.core)
     implementation(libs.http4k.format.moshi)

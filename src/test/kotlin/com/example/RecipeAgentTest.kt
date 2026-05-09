@@ -14,7 +14,6 @@ import org.http4k.ai.a2a.model.ResponseStream
 import org.http4k.ai.a2a.model.Task
 import org.http4k.ai.a2a.model.TaskState.TASK_STATE_COMPLETED
 import org.http4k.ai.a2a.model.TaskState.TASK_STATE_WORKING
-import org.http4k.filter.debug
 import org.http4k.routing.reverseProxy
 import org.junit.jupiter.api.Test
 

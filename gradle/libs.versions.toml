@@ -8,6 +8,9 @@ junit = "6.0.3"
 http4k-bom = { module = "org.http4k:http4k-bom", version.ref = "http4k" }
 http4k-ai-sdk = { module = "org.http4k.pro:http4k-ai-a2a-sdk" }
 http4k-ai-client = { module = "org.http4k.pro:http4k-ai-a2a-client" }
+http4k-ai-mcp-sdk = { module = "org.http4k.pro:http4k-ai-mcp-sdk" }
+http4k-ai-mcp-client = { module = "org.http4k.pro:http4k-ai-mcp-client" }
+http4k-ai-mcp-testing = { module = "org.http4k.pro:http4k-ai-mcp-testing" }
 http4k-config = { module = "org.http4k:http4k-config" }
 http4k-core = { module = "org.http4k:http4k-core" }
 http4k-format-moshi = { module = "org.http4k:http4k-format-moshi" }
