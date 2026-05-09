@@ -65,6 +65,9 @@ dependencies {
 
     implementation(platform(libs.http4k.bom))
     implementation(libs.http4k.ai.a2a.sdk)
+    implementation(libs.http4k.ai.llm.core)
+    implementation(libs.http4k.ai.llm.openai)
+    implementation(libs.http4k.ai.llm.openai.fake)
     implementation(libs.http4k.ai.mcp.sdk)
     implementation(libs.http4k.ai.mcp.client)
     implementation(libs.http4k.ai.mcp.testing)
