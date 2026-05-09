@@ -1,6 +1,5 @@
 package com.example
 
-import java.util.UUID
 import org.http4k.ai.a2a.model.A2ARole.ROLE_AGENT
 import org.http4k.ai.a2a.model.AgentCapabilities
 import org.http4k.ai.a2a.model.AgentCard
@@ -24,8 +23,7 @@ import org.http4k.filter.DebuggingFilters.PrintRequest
 import org.http4k.routing.a2aJsonRpc
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
-
-
+import java.util.*
 
 val recipeAgentCard = AgentCard(
     name = "Recipe Agent",
@@ -55,14 +53,16 @@ val app = a2aJsonRpc(recipeAgentCard, messageHandler = { request ->
     val taskId = TaskId.of(UUID.randomUUID().toString())
     val contextId = ContextId.of(UUID.randomUUID().toString())
 
-    ResponseStream(
-        sequenceOf(
+    ResponseStream(sequence {
+        yield(
             Task(
                 id = taskId,
                 status = TaskStatus(state = TASK_STATE_WORKING),
                 contextId = contextId,
                 history = listOf(request.message)
-            ),
+            )
+        )
+        yield(
             Task(
                 id = taskId,
                 status = TaskStatus(
@@ -76,7 +76,7 @@ val app = a2aJsonRpc(recipeAgentCard, messageHandler = { request ->
                 contextId = contextId
             )
         )
-    )
+    })
 })
 
 fun main() {
