@@ -4,7 +4,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 plugins {
     alias(libs.plugins.kotlin.jvm)
     application
-    id("com.gradleup.shadow") version "9.3.0"
+    alias(libs.plugins.shadow)
 }
 
 buildscript {
@@ -63,18 +63,18 @@ tasks {
 
 dependencies {
 
-    implementation(platform("org.http4k:http4k-bom:6.46.0.0"))
-    implementation("org.http4k.pro:http4k-ai-a2a-sdk")
-    implementation("org.http4k:http4k-config")
-    implementation("org.http4k:http4k-core")
-    implementation("org.http4k:http4k-format-moshi")
-    implementation("org.http4k:http4k-server-jetty")
-    testImplementation("org.http4k.pro:http4k-ai-a2a-client")
-    testImplementation("org.http4k:http4k-server-jetty")
-    testImplementation("org.http4k:http4k-testing-hamkrest")
-    testImplementation("org.http4k:http4k-testing-kotest")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:6.0.3")
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:6.0.3")
-    testImplementation("org.junit.platform:junit-platform-launcher:6.0.3")
+    implementation(platform(libs.http4k.bom))
+    implementation(libs.http4k.ai.sdk)
+    implementation(libs.http4k.config)
+    implementation(libs.http4k.core)
+    implementation(libs.http4k.format.moshi)
+    implementation(libs.http4k.server.jetty)
+    testImplementation(libs.http4k.ai.client)
+    testImplementation(libs.http4k.server.jetty)
+    testImplementation(libs.http4k.testing.hamkrest)
+    testImplementation(libs.http4k.testing.kotest)
+    testImplementation(libs.junit.jupiter.api)
+    testImplementation(libs.junit.jupiter.engine)
+    testImplementation(libs.junit.platform.launcher)
 }
 
