@@ -13,7 +13,7 @@ import org.http4k.server.asServer
 
 fun main() {
     // start the A2A server
-    val server = app.asServer(Jetty(9000)).start()
+    val server = App().asServer(Jetty(9000)).start()
 
     // create a client and start the connection
     HttpA2AClient(Uri.of("http://localhost:9000")).use { client ->

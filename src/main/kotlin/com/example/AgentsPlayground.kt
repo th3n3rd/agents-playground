@@ -48,39 +48,43 @@ val recipeAgentCard = AgentCard(
     )
 )
 
-val app = a2aJsonRpc(recipeAgentCard, messageHandler = { request ->
-    val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
-    val taskId = TaskId.of(UUID.randomUUID().toString())
-    val contextId = ContextId.of(UUID.randomUUID().toString())
+object App {
+    operator fun invoke(): PolyHandler {
+        return a2aJsonRpc(recipeAgentCard, messageHandler = { request ->
+            val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
+            val taskId = TaskId.of(UUID.randomUUID().toString())
+            val contextId = ContextId.of(UUID.randomUUID().toString())
 
-    ResponseStream(sequence {
-        yield(
-            Task(
-                id = taskId,
-                status = TaskStatus(state = TASK_STATE_WORKING),
-                contextId = contextId,
-                history = listOf(request.message)
-            )
-        )
-        yield(
-            Task(
-                id = taskId,
-                status = TaskStatus(
-                    state = TASK_STATE_COMPLETED,
-                    message = Message(
-                        messageId = MessageId.random(),
-                        role = ROLE_AGENT,
-                        parts = listOf(Part.Text("Found recipes for: $query\n\n1. Pasta Carbonara\n2. Tomato Basil Soup\n3. Grilled Vegetables"))
+            ResponseStream(sequence {
+                yield(
+                    Task(
+                        id = taskId,
+                        status = TaskStatus(state = TASK_STATE_WORKING),
+                        contextId = contextId,
+                        history = listOf(request.message)
                     )
-                ),
-                contextId = contextId
-            )
-        )
-    })
-})
+                )
+                yield(
+                    Task(
+                        id = taskId,
+                        status = TaskStatus(
+                            state = TASK_STATE_COMPLETED,
+                            message = Message(
+                                messageId = MessageId.random(),
+                                role = ROLE_AGENT,
+                                parts = listOf(Part.Text("Found recipes for: $query\n\n1. Pasta Carbonara\n2. Tomato Basil Soup\n3. Grilled Vegetables"))
+                            )
+                        ),
+                        contextId = contextId
+                    )
+                )
+            })
+        })
+    }
+}
 
 fun main() {
-    val printingApp: PolyHandler = PrintRequest().then(app)
+    val printingApp: PolyHandler = PrintRequest().then(App())
 
     val server = printingApp.asServer(Jetty(9000)).start()
 

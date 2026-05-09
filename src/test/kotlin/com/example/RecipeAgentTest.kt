@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test
 
 class RecipeAgentTest {
 
-    private val client = app.testA2AJsonRpcClient()
+    private val client = App().testA2AJsonRpcClient()
 
     @Test
     fun `agent card is discoverable`() {
