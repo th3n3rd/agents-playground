@@ -18,7 +18,7 @@ import org.http4k.routing.reverseProxy
 import org.junit.jupiter.api.Test
 import org.http4k.ai.llm.model.Message as LLMMessage
 
-class RecipeAgentTest {
+class RecipesAgentTest {
     private val mealApiServer = FakeMealApiServer()
 
     private val llm = ScriptedChat(
@@ -51,7 +51,7 @@ class RecipeAgentTest {
 
     @Test
     fun `agent card is discoverable`() {
-        assertThat(client.agentCard(), equalTo(Success(recipeAgentCard)))
+        assertThat(client.agentCard(), equalTo(Success(RecipesAgent.card)))
     }
 
     @Test

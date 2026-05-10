@@ -1,74 +1,21 @@
 package com.example
 
-import dev.forkhandles.result4k.asSuccess
-import dev.forkhandles.result4k.flatMap
-import dev.forkhandles.result4k.peek
-import dev.forkhandles.result4k.valueOrNull
-import org.http4k.ai.a2a.model.A2ARole.ROLE_AGENT
-import org.http4k.ai.a2a.model.AgentCapabilities
-import org.http4k.ai.a2a.model.AgentCard
-import org.http4k.ai.a2a.model.AgentSkill
-import org.http4k.ai.a2a.model.ContextId
-import org.http4k.ai.a2a.model.Message
-import org.http4k.ai.a2a.model.MessageId
-import org.http4k.ai.a2a.model.Part
-import org.http4k.ai.a2a.model.ResponseStream
-import org.http4k.ai.a2a.model.SkillId
-import org.http4k.ai.a2a.model.Task
-import org.http4k.ai.a2a.model.TaskId
-import org.http4k.ai.a2a.model.TaskState
-import org.http4k.ai.a2a.model.TaskState.TASK_STATE_WORKING
-import org.http4k.ai.a2a.model.TaskStatus
-import org.http4k.ai.a2a.model.Version
-import org.http4k.ai.llm.LLMResult
 import org.http4k.ai.llm.chat.Chat
-import org.http4k.ai.llm.chat.ChatRequest
-import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.chat.OpenAI
-import org.http4k.ai.llm.model.Content
-import org.http4k.ai.llm.model.ModelParams
-import org.http4k.ai.llm.tools.LLMTool
-import org.http4k.ai.llm.tools.ToolResponse
-import org.http4k.ai.mcp.ToolRequest
-import org.http4k.ai.mcp.client.McpClient
 import org.http4k.ai.mcp.protocol.ServerMetaData
-import org.http4k.ai.mcp.protocol.messages.toLLM
 import org.http4k.ai.mcp.server.security.NoMcpSecurity
 import org.http4k.ai.mcp.testing.testMcpClient
-import org.http4k.ai.mcp.toLLM
 import org.http4k.ai.model.ApiKey
 import org.http4k.client.JavaHttpClient
-import org.http4k.connect.model.MimeType
 import org.http4k.connect.openai.FakeOpenAI
-import org.http4k.connect.openai.OpenAIModels
 import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.core.then
 import org.http4k.filter.DebuggingFilters.PrintRequest
-import org.http4k.routing.a2aJsonRpc
 import org.http4k.routing.mcp
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
 import java.time.Duration
-import java.util.*
-import org.http4k.ai.llm.model.Message as LLMMessage
-
-val recipeAgentCard = AgentCard(
-    name = "Recipe Agent",
-    version = Version.of("1.0.0"),
-    description = "An agent that helps users find and explore recipes",
-    capabilities = AgentCapabilities(streaming = true),
-    defaultInputModes = listOf(MimeType.of("text/plain")),
-    defaultOutputModes = listOf(MimeType.of("text/plain")),
-    skills = listOf(
-        AgentSkill(
-            id = SkillId.of("search-recipes"),
-            name = "Search Recipe",
-            description = "Search for recipes by ingredients or cuisine",
-            tags = listOf("cooking", "recipes", "search")
-        )
-    )
-)
 
 object App {
     operator fun invoke(
@@ -88,83 +35,7 @@ object App {
             start(Duration.ofSeconds(1))
         }
 
-        val llmTools = mcpClient.tools()
-            .list()
-            .valueOrNull()
-            .orEmpty()
-            .map { it.toLLM() }
-
-        val agent = a2aJsonRpc(recipeAgentCard, messageHandler = { request ->
-            val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
-            val taskId = TaskId.of(UUID.randomUUID().toString())
-            val contextId = ContextId.of(UUID.randomUUID().toString())
-
-            val history = mutableListOf<LLMMessage>()
-
-            ResponseStream(sequence {
-                yield(
-                    Task(
-                        id = taskId,
-                        status = TaskStatus(state = TASK_STATE_WORKING),
-                        contextId = contextId,
-                        history = listOf(request.message)
-                    )
-                )
-
-                llm.ask(LLMMessage.User("Give me the list of recipes for $query"), history, llmTools)
-                    .flatMap { it.message.toolRequests.first().asSuccess() } // TODO: need to understand how to deal with many tool calls
-                    .flatMap { mcpClient.executeTool(it) }
-                    .flatMap { llm.ask(it.result, history, llmTools) }
-                    .peek {
-                        yield(
-                            Task(
-                                id = taskId,
-                                status = TaskStatus(
-                                    state = TaskState.TASK_STATE_COMPLETED,
-                                    message = Message(
-                                        messageId = MessageId.random(),
-                                        role = ROLE_AGENT,
-                                        parts = listOf(
-                                            Part.Text(
-                                                it.message.contents
-                                                    .filterIsInstance<Content.Text>()
-                                                    .joinToString("\n") { it.text }
-                                            )
-                                        )
-                                    )
-                                ),
-                                contextId = contextId
-                            ),
-                        )
-                    }
-            })
-        })
-
-        return agent
-    }
-
-    private fun McpClient.executeTool(
-        request: org.http4k.ai.llm.tools.ToolRequest
-    ): LLMResult<ToolResponse> = tools()
-        .call(request.name, ToolRequest(request.arguments))
-        .valueOrNull()!!
-        .toLLM(request)
-
-    private fun Chat.ask(
-        message: LLMMessage,
-        history: MutableList<LLMMessage>,
-        llmTools: List<LLMTool> = emptyList()
-    ): LLMResult<ChatResponse> {
-        history.add(message)
-        return this(
-            ChatRequest(
-                messages = history,
-                params = ModelParams(
-                    modelName = OpenAIModels.GPT4,
-                    tools = llmTools
-                )
-            )
-        )
+        return RecipesAgent(llm, mcpClient)
     }
 }
 

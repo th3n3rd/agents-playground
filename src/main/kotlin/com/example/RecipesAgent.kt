@@ -1,0 +1,142 @@
+package com.example
+
+import dev.forkhandles.result4k.Result
+import dev.forkhandles.result4k.asSuccess
+import dev.forkhandles.result4k.flatMap
+import dev.forkhandles.result4k.peek
+import dev.forkhandles.result4k.valueOrNull
+import org.http4k.ai.a2a.model.A2ARole
+import org.http4k.ai.a2a.model.AgentCapabilities
+import org.http4k.ai.a2a.model.AgentCard
+import org.http4k.ai.a2a.model.AgentSkill
+import org.http4k.ai.a2a.model.ContextId
+import org.http4k.ai.a2a.model.MessageId
+import org.http4k.ai.a2a.model.Part
+import org.http4k.ai.a2a.model.ResponseStream
+import org.http4k.ai.a2a.model.SkillId
+import org.http4k.ai.a2a.model.Task
+import org.http4k.ai.a2a.model.TaskId
+import org.http4k.ai.a2a.model.TaskState
+import org.http4k.ai.a2a.model.TaskStatus
+import org.http4k.ai.a2a.model.Version
+import org.http4k.ai.llm.LLMError
+import org.http4k.ai.llm.LLMResult
+import org.http4k.ai.llm.chat.Chat
+import org.http4k.ai.llm.chat.ChatRequest
+import org.http4k.ai.llm.chat.ChatResponse
+import org.http4k.ai.llm.model.Content
+import org.http4k.ai.llm.model.Message
+import org.http4k.ai.llm.model.ModelParams
+import org.http4k.ai.llm.tools.LLMTool
+import org.http4k.ai.llm.tools.ToolRequest
+import org.http4k.ai.mcp.client.McpClient
+import org.http4k.ai.mcp.protocol.messages.toLLM
+import org.http4k.ai.mcp.toLLM
+import org.http4k.connect.model.MimeType
+import org.http4k.connect.openai.OpenAIModels
+import org.http4k.core.PolyHandler
+import org.http4k.routing.a2aJsonRpc
+import java.util.*
+
+object RecipesAgent {
+    val card = AgentCard(
+        name = "Recipe Agent",
+        version = Version.of("1.0.0"),
+        description = "An agent that helps users find and explore recipes",
+        capabilities = AgentCapabilities(streaming = true),
+        defaultInputModes = listOf(MimeType.of("text/plain")),
+        defaultOutputModes = listOf(MimeType.of("text/plain")),
+        skills = listOf(
+            AgentSkill(
+                id = SkillId.of("search-recipes"),
+                name = "Search Recipe",
+                description = "Search for recipes by ingredients or cuisine",
+                tags = listOf("cooking", "recipes", "search")
+            )
+        )
+    )
+
+    operator fun invoke(llm: Chat, mcpClient: McpClient): PolyHandler {
+        val llmTools = mcpClient.tools()
+            .list()
+            .valueOrNull()
+            .orEmpty()
+            .map { it.toLLM() }
+
+        return a2aJsonRpc(card, messageHandler = { request ->
+            val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
+            val taskId = TaskId.of(UUID.randomUUID().toString())
+            val contextId = ContextId.of(UUID.randomUUID().toString())
+
+            val history = mutableListOf<Message>()
+
+            ResponseStream(sequence {
+                yield(
+                    Task(
+                        id = taskId,
+                        status = TaskStatus(state = TaskState.TASK_STATE_WORKING),
+                        contextId = contextId,
+                        history = listOf(request.message)
+                    )
+                )
+
+                processQuery(llm, query, history, llmTools, mcpClient).peek {
+                    yield(
+                        Task(
+                            id = taskId,
+                            status = TaskStatus(
+                                state = TaskState.TASK_STATE_COMPLETED,
+                                message = org.http4k.ai.a2a.model.Message(
+                                    messageId = MessageId.Companion.random(),
+                                    role = A2ARole.ROLE_AGENT,
+                                    parts = listOf(
+                                        Part.Text(
+                                            it.message.contents
+                                                .filterIsInstance<Content.Text>()
+                                                .joinToString("\n") { it.text }
+                                        )
+                                    )
+                                )
+                            ),
+                            contextId = contextId
+                        ),
+                    )
+                }
+            })
+        })
+    }
+
+    private fun processQuery(
+        llm: Chat,
+        query: String,
+        history: MutableList<Message>,
+        llmTools: List<LLMTool>,
+        mcpClient: McpClient
+    ): Result<ChatResponse, LLMError> =
+        llm.ask(Message.User("Give me the list of recipes for $query"), history, llmTools)
+            .flatMap { it.message.toolRequests.first().asSuccess() } // TODO: need to understand how to deal with many tool calls
+            .flatMap { mcpClient.executeTool(it) }
+            .flatMap { llm.ask(it.result, history, llmTools) }
+
+    private fun McpClient.executeTool(request: ToolRequest) = tools()
+        .call(request.name, org.http4k.ai.mcp.ToolRequest(request.arguments))
+        .valueOrNull()!!
+        .toLLM(request)
+
+    private fun Chat.ask(
+        message: Message,
+        history: MutableList<Message>,
+        llmTools: List<LLMTool> = emptyList()
+    ): LLMResult<ChatResponse> {
+        history.add(message)
+        return this(
+            ChatRequest(
+                messages = history,
+                params = ModelParams(
+                    modelName = OpenAIModels.GPT4,
+                    tools = llmTools
+                )
+            )
+        )
+    }
+}
