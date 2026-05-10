@@ -2,8 +2,6 @@ package com.example
 
 import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.OpenAI
-import org.http4k.ai.mcp.protocol.ServerMetaData
-import org.http4k.ai.mcp.server.security.NoMcpSecurity
 import org.http4k.ai.mcp.testing.testMcpClient
 import org.http4k.ai.model.ApiKey
 import org.http4k.client.JavaHttpClient
@@ -12,7 +10,6 @@ import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.core.then
 import org.http4k.filter.DebuggingFilters.PrintRequest
-import org.http4k.routing.mcp
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
 import java.time.Duration
@@ -24,16 +21,9 @@ object App {
     ): PolyHandler {
         val recipes = MealApiRecipes(outgoing)
 
-        val mcp = mcp(
-            metadata = ServerMetaData("mcp-server", "0.0.1"),
-            security = NoMcpSecurity,
-            SearchRecipesTool(recipes)
-        )
-
-        // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
-        val mcpClient = mcp.testMcpClient().apply {
-            start(Duration.ofSeconds(1))
-        }
+        val mcpClient = RecipesMcp(recipes)
+            .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
+            .apply { start(Duration.ofSeconds(1)) }
 
         return RecipesAgent(llm, mcpClient)
     }
