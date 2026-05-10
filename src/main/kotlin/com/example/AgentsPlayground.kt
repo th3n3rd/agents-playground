@@ -1,5 +1,6 @@
 package com.example
 
+import dev.forkhandles.result4k.asSuccess
 import dev.forkhandles.result4k.flatMap
 import dev.forkhandles.result4k.peek
 import dev.forkhandles.result4k.valueOrNull
@@ -19,12 +20,17 @@ import org.http4k.ai.a2a.model.TaskState
 import org.http4k.ai.a2a.model.TaskState.TASK_STATE_WORKING
 import org.http4k.ai.a2a.model.TaskStatus
 import org.http4k.ai.a2a.model.Version
+import org.http4k.ai.llm.LLMResult
 import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.ChatRequest
+import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.chat.OpenAI
 import org.http4k.ai.llm.model.Content
 import org.http4k.ai.llm.model.ModelParams
+import org.http4k.ai.llm.tools.LLMTool
+import org.http4k.ai.llm.tools.ToolResponse
 import org.http4k.ai.mcp.ToolRequest
+import org.http4k.ai.mcp.client.McpClient
 import org.http4k.ai.mcp.protocol.ServerMetaData
 import org.http4k.ai.mcp.protocol.messages.toLLM
 import org.http4k.ai.mcp.server.security.NoMcpSecurity
@@ -105,41 +111,11 @@ object App {
                     )
                 )
 
-                history.add(
-                    LLMMessage.User("Give me the list of recipes for $query")
-                )
-
-                llm(
-                    ChatRequest(
-                        messages = history,
-                        params = ModelParams(
-                            modelName = OpenAIModels.GPT4,
-                            tools = llmTools
-                        )
-                    )
-                ).flatMap {
-                    val toolRequest = it.message.toolRequests.first() // TODO: need to understand how to deal with many tool calls
-
-                    mcpClient
-                        .tools()
-                        .call(toolRequest.name, ToolRequest(toolRequest.arguments))
-                        .valueOrNull()!!
-                        .toLLM(toolRequest)
-                }
+                llm.ask(LLMMessage.User("Give me the list of recipes for $query"), history, llmTools)
+                    .flatMap { it.message.toolRequests.first().asSuccess() } // TODO: need to understand how to deal with many tool calls
+                    .flatMap { mcpClient.executeTool(it) }
+                    .flatMap { llm.ask(it.result, history, llmTools) }
                     .peek {
-                        history.add(it.result)
-                    }
-                    .flatMap {
-                        llm(
-                            ChatRequest(
-                                messages = history,
-                                params = ModelParams(
-                                    modelName = OpenAIModels.GPT4,
-                                    tools = llmTools
-                                )
-                            )
-                        )
-                    }.peek {
                         yield(
                             Task(
                                 id = taskId,
@@ -165,6 +141,30 @@ object App {
         })
 
         return agent
+    }
+
+    private fun McpClient.executeTool(
+        request: org.http4k.ai.llm.tools.ToolRequest
+    ): LLMResult<ToolResponse> = tools()
+        .call(request.name, ToolRequest(request.arguments))
+        .valueOrNull()!!
+        .toLLM(request)
+
+    private fun Chat.ask(
+        message: LLMMessage,
+        history: MutableList<LLMMessage>,
+        llmTools: List<LLMTool> = emptyList()
+    ): LLMResult<ChatResponse> {
+        history.add(message)
+        return this(
+            ChatRequest(
+                messages = history,
+                params = ModelParams(
+                    modelName = OpenAIModels.GPT4,
+                    tools = llmTools
+                )
+            )
+        )
     }
 }
 

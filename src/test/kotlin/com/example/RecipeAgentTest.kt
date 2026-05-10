@@ -14,16 +14,16 @@ import org.http4k.ai.a2a.model.ResponseStream
 import org.http4k.ai.a2a.model.Task
 import org.http4k.ai.a2a.model.TaskState.TASK_STATE_COMPLETED
 import org.http4k.ai.a2a.model.TaskState.TASK_STATE_WORKING
-import org.http4k.ai.llm.chat.ChatRequest
 import org.http4k.routing.reverseProxy
 import org.junit.jupiter.api.Test
 import org.http4k.ai.llm.model.Message as LLMMessage
 
 class RecipeAgentTest {
     private val mealApiServer = FakeMealApiServer()
+
     private val llm = ScriptedChat(
         { request ->
-            val lastMessage = message(request)
+            val lastMessage = request.messages.last()
             if (lastMessage == LLMMessage.User("Give me the list of recipes for Carbonara")) {
                 Answers.RequireToolExecution(SearchRecipesTool.name, mapOf("query" to "Carbonara"))
             } else {
@@ -40,13 +40,13 @@ class RecipeAgentTest {
         }
     )
 
-    private fun message(request: ChatRequest): LLMMessage = request.messages.last()
     private val app = App(
         llm = llm,
         outgoing = reverseProxy(
             mealApiServer.uri.authority to mealApiServer
         )
     )
+
     private val client = app.testA2AJsonRpcClient()
 
     @Test
