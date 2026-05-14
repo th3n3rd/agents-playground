@@ -19,13 +19,9 @@ object App {
         llm: Chat,
         outgoing: HttpHandler = JavaHttpClient()
     ): PolyHandler {
-        val recipes = MealApiRecipes(outgoing)
+        val recipeAgent = RecipesAgent(llm, outgoing)
 
-        val mcpClient = RecipesMcp(recipes)
-            .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
-            .apply { start(Duration.ofSeconds(1)) }
-
-        return RecipesAgent(llm, mcpClient)
+        return recipeAgent
     }
 }
 

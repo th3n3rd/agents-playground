@@ -31,11 +31,14 @@ import org.http4k.ai.llm.tools.LLMTool
 import org.http4k.ai.llm.tools.ToolRequest
 import org.http4k.ai.mcp.client.McpClient
 import org.http4k.ai.mcp.protocol.messages.toLLM
+import org.http4k.ai.mcp.testing.testMcpClient
 import org.http4k.ai.mcp.toLLM
 import org.http4k.connect.model.MimeType
 import org.http4k.connect.openai.OpenAIModels
+import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.routing.a2aJsonRpc
+import java.time.Duration
 import java.util.*
 
 object RecipesAgent {
@@ -56,7 +59,13 @@ object RecipesAgent {
         )
     )
 
-    operator fun invoke(llm: Chat, mcpClient: McpClient): PolyHandler {
+    operator fun invoke(llm: Chat, outgoing: HttpHandler): PolyHandler {
+        val recipes = MealApiRecipes(outgoing)
+
+        val mcpClient = RecipesMcp(recipes)
+            .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
+            .apply { start(Duration.ofSeconds(1)) }
+
         val llmTools = mcpClient.tools()
             .list()
             .valueOrNull()
