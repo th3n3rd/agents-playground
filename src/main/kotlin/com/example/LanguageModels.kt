@@ -1,10 +1,12 @@
 package com.example
 
-import dev.forkhandles.result4k.Failure
+import dev.forkhandles.result4k.Success
+import dev.forkhandles.result4k.allValues
 import dev.forkhandles.result4k.asSuccess
 import dev.forkhandles.result4k.flatMap
 import dev.forkhandles.result4k.map
 import dev.forkhandles.result4k.mapFailure
+import dev.forkhandles.result4k.peek
 import dev.forkhandles.result4k.valueOrNull
 import org.http4k.ai.a2a.client.A2AClient
 import org.http4k.ai.a2a.model.A2ARole
@@ -15,10 +17,17 @@ import org.http4k.ai.a2a.model.Part
 import org.http4k.ai.a2a.model.Task
 import org.http4k.ai.llm.LLMError
 import org.http4k.ai.llm.LLMResult
+import org.http4k.ai.llm.chat.Chat
+import org.http4k.ai.llm.chat.ChatRequest
+import org.http4k.ai.llm.chat.ChatResponse
+import org.http4k.ai.llm.model.Message.User
+import org.http4k.ai.llm.model.ModelParams
+import org.http4k.ai.llm.model.Message as LLMMessage
 import org.http4k.ai.llm.tools.LLMTool
 import org.http4k.ai.llm.tools.LLMTools
 import org.http4k.ai.llm.tools.ToolRequest
 import org.http4k.ai.llm.tools.ToolResponse
+import org.http4k.connect.openai.OpenAIModels
 
 fun AgentCard.toLLM(): LLMTool = LLMTool(
     name = name,
@@ -39,6 +48,42 @@ fun AgentCard.toLLM(): LLMTool = LLMTool(
     )
 )
 
+fun Chat.reactLoop(query: String, tools: LLMTools): LLMResult<ChatResponse> {
+    val history = mutableListOf<LLMMessage>()
+
+    fun act(toolRequests: List<ToolRequest>) = toolRequests
+        .map { req -> tools(req).map { it.result } }
+        .allValues()
+
+    fun remember(toolResults: List<LLMMessage.ToolResult>) =
+        toolResults.forEach { history.add(it) }
+
+    fun reason() = this(
+        ChatRequest(
+            messages = history,
+            params = ModelParams(
+                modelName = OpenAIModels.GPT4,
+                tools = tools.list().valueOrNull()!!
+            )
+        )
+    )
+
+    fun loop(response: ChatResponse): LLMResult<ChatResponse> {
+        if (response.message.toolRequests.isEmpty()) {
+            return Success(response)
+        }
+
+        return act(response.message.toolRequests)
+            .peek { remember(it) }
+            .flatMap { reason() }
+            .flatMap { loop(it) }
+    }
+
+    history.add(User(query))
+
+    return reason().flatMap { loop(it) }
+}
+
 class AgentTool(val client: A2AClient) : LLMTools {
     override fun list(): LLMResult<List<LLMTool>> {
         return client.agentCard()
@@ -51,7 +96,7 @@ class AgentTool(val client: A2AClient) : LLMTools {
 
         val result = client.message( // TODO: support streaming (i.e. non blocking) responses
             Message(
-                MessageId.Companion.random(),
+                MessageId.random(),
                 A2ARole.ROLE_USER,
                 listOf(Part.Text(query))
             ) // TODO: need to understand what's the right parameter(s)

@@ -13,7 +13,7 @@ import org.http4k.core.PolyHandler
 import org.http4k.core.then
 import org.http4k.filter.DebuggingFilters.PrintRequest
 import org.http4k.filter.debug
-import org.http4k.routing.plus
+import org.http4k.routing.tools
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
 import java.time.Duration
@@ -37,9 +37,10 @@ object App {
 
         return CoordinatorAgent(
             llm = llm,
-            tools =
-                AgentTool(recipeAgent.testA2AJsonRpcClient()) + // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory a2a handler
+            tools = tools(
+                AgentTool(recipeAgent.testA2AJsonRpcClient()), // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory a2a handler
                 AgentTool(shoppingListAgent.testA2AJsonRpcClient())
+            )
         )
     }
 }

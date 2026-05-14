@@ -1,9 +1,7 @@
 package com.example
 
-import dev.forkhandles.result4k.flatMap
 import dev.forkhandles.result4k.map
 import dev.forkhandles.result4k.peek
-import dev.forkhandles.result4k.valueOrNull
 import org.http4k.ai.a2a.model.A2ARole
 import org.http4k.ai.a2a.model.AgentCapabilities
 import org.http4k.ai.a2a.model.AgentCard
@@ -18,17 +16,11 @@ import org.http4k.ai.a2a.model.TaskId
 import org.http4k.ai.a2a.model.TaskState
 import org.http4k.ai.a2a.model.TaskStatus
 import org.http4k.ai.a2a.model.Version
-import org.http4k.ai.llm.LLMResult
 import org.http4k.ai.llm.chat.Chat
-import org.http4k.ai.llm.chat.ChatRequest
 import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.model.Content
-import org.http4k.ai.llm.model.Message
-import org.http4k.ai.llm.model.Message.User
-import org.http4k.ai.llm.model.ModelParams
 import org.http4k.ai.llm.tools.LLMTools
 import org.http4k.connect.model.MimeType
-import org.http4k.connect.openai.OpenAIModels
 import org.http4k.core.PolyHandler
 import org.http4k.routing.a2aJsonRpc
 import java.util.UUID
@@ -67,17 +59,7 @@ object CoordinatorAgent {
                     )
                 )
 
-                val history = mutableListOf<Message>()
-
-                var result = llm.ask(User(query), history, tools)
-
-                while (result.valueOrNull()?.message?.toolRequests?.isNotEmpty() == true) {
-                    result = result
-                        .flatMap { tools(it.message.toolRequests.first()) }
-                        .flatMap { llm.ask(it.result, history, tools) }
-                }
-
-                result
+                llm.reactLoop(query, tools)
                     .map { answer(it) }
                     .peek {
                         yield(
@@ -85,7 +67,7 @@ object CoordinatorAgent {
                                 id = taskId,
                                 status = TaskStatus(state = TaskState.TASK_STATE_COMPLETED, message = it),
                                 contextId = contextId
-                            ),
+                            )
                         )
                     }
             })
@@ -103,21 +85,4 @@ object CoordinatorAgent {
             )
         )
     )
-
-    private fun Chat.ask(
-        message: Message,
-        history: MutableList<Message>,
-        llmTools: LLMTools
-    ): LLMResult<ChatResponse> {
-        history.add(message)
-        return this(
-            ChatRequest(
-                messages = history,
-                params = ModelParams(
-                    modelName = OpenAIModels.GPT4,
-                    tools = llmTools.list().valueOrNull()!!
-                )
-            )
-        )
-    }
 }
