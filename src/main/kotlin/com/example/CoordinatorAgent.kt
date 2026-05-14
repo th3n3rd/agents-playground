@@ -43,7 +43,7 @@ object CoordinatorAgent {
         )
     )
 
-    operator fun invoke(llm: Chat, tools: LLMTools): PolyHandler {
+    operator fun invoke(llm: Chat, tools: LLMTools = NoTools()): PolyHandler {
         return a2aJsonRpc(card, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
             val taskId = TaskId.of(UUID.randomUUID().toString())

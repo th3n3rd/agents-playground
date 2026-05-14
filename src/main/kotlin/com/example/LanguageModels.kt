@@ -2,6 +2,7 @@ package com.example
 
 import dev.forkhandles.result4k.Success
 import dev.forkhandles.result4k.allValues
+import dev.forkhandles.result4k.asFailure
 import dev.forkhandles.result4k.asSuccess
 import dev.forkhandles.result4k.flatMap
 import dev.forkhandles.result4k.map
@@ -82,6 +83,11 @@ fun Chat.reactLoop(query: String, tools: LLMTools): LLMResult<ChatResponse> {
     history.add(User(query))
 
     return reason().flatMap { loop(it) }
+}
+
+class NoTools : LLMTools {
+    override fun list(): LLMResult<List<LLMTool>> = emptyList<LLMTool>().asSuccess()
+    override fun invoke(request: ToolRequest): LLMResult<ToolResponse> = LLMError.Internal(Exception("No tools available")).asFailure()
 }
 
 class AgentTool(val client: A2AClient) : LLMTools {
