@@ -1,7 +1,6 @@
 package com.example
 
 import dev.forkhandles.result4k.Result
-import dev.forkhandles.result4k.asSuccess
 import dev.forkhandles.result4k.flatMap
 import dev.forkhandles.result4k.map
 import dev.forkhandles.result4k.peek
@@ -29,8 +28,7 @@ import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.model.Content
 import org.http4k.ai.llm.model.Message
 import org.http4k.ai.llm.model.ModelParams
-import org.http4k.ai.llm.tools.LLMTool
-import org.http4k.ai.llm.tools.ToolRequest
+import org.http4k.ai.llm.tools.LLMTools
 import org.http4k.connect.model.MimeType
 import org.http4k.connect.openai.OpenAIModels
 import org.http4k.core.PolyHandler
@@ -58,10 +56,7 @@ object CoordinatorAgent {
     operator fun invoke(llm: Chat, subAgents: List<A2AClient>): PolyHandler {
         val subAgent = subAgents.first() // TODO: needs to support multiple sub-agents
 
-        val llmTools = listOf(subAgent)
-            .map { it.agentCard() }
-            .mapNotNull { it.valueOrNull() }
-            .map { it.toLLM() }
+        val agentTool = AgentTool(subAgent)
 
         return a2aJsonRpc(card, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
@@ -80,7 +75,7 @@ object CoordinatorAgent {
 
                 val history = mutableListOf<Message>()
 
-                processQuery(llm, query, history, llmTools, subAgent)
+                processQuery(llm, query, history, agentTool)
                     .map { answer(it) }
                     .peek {
                         yield(
@@ -99,12 +94,11 @@ object CoordinatorAgent {
         llm: Chat,
         query: String,
         history: MutableList<Message>,
-        llmTools: List<LLMTool>,
-        subAgent: A2AClient
+        agentTool: AgentTool
     ): Result<ChatResponse, LLMError> =
-        llm.ask(Message.User(query), history, llmTools)
-            .flatMap { subAgent.delegate(it.message.toolRequests.first()) } // TODO: need to understand how to deal with many tool calls
-            .flatMap { llm.ask(it, history, llmTools) }
+        llm.ask(Message.User(query), history, agentTool)
+            .flatMap { agentTool(it.message.toolRequests.first()) } // TODO: need to understand how to deal with many tool calls
+            .flatMap { llm.ask(it.result, history, agentTool) }
 
     private fun answer(response: ChatResponse): org.http4k.ai.a2a.model.Message = org.http4k.ai.a2a.model.Message(
         messageId = MessageId.random(),
@@ -118,34 +112,10 @@ object CoordinatorAgent {
         )
     )
 
-    private fun A2AClient.delegate(request: ToolRequest): Result<Message.ToolResult, Nothing> {
-        val query = request.arguments["query"].toString()
-
-        val result = message( // TODO: support streaming (i.e. non blocking) responses
-            org.http4k.ai.a2a.model.Message(
-                MessageId.random(),
-                A2ARole.ROLE_USER,
-                listOf(Part.Text(query))
-            ) // TODO: need to understand what's the right parameter(s)
-        ).valueOrNull()!!
-            .let { it as Task }
-            .status
-            .message
-            ?.parts?.filterIsInstance<Part.Text>()
-            ?.joinToString("\n") { it.text }
-            .orEmpty()
-
-        return Message.ToolResult(
-            id = request.id,
-            tool = request.name,
-            text = result
-        ).asSuccess()
-    }
-
     private fun Chat.ask(
         message: Message,
         history: MutableList<Message>,
-        llmTools: List<LLMTool> = emptyList()
+        llmTools: LLMTools
     ): LLMResult<ChatResponse> {
         history.add(message)
         return this(
@@ -153,7 +123,7 @@ object CoordinatorAgent {
                 messages = history,
                 params = ModelParams(
                     modelName = OpenAIModels.GPT4,
-                    tools = llmTools
+                    tools = llmTools.list().valueOrNull()!!
                 )
             )
         )
