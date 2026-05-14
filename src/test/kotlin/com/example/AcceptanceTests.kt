@@ -18,13 +18,13 @@ import org.http4k.routing.reverseProxy
 import org.junit.jupiter.api.Test
 import org.http4k.ai.llm.model.Message as LLMMessage
 
-class RecipesAgentTest {
+class AcceptanceTests {
     private val mealApiServer = FakeMealApiServer()
 
     private val llm = ScriptedChat(
         { request ->
             val lastMessage = request.messages.last()
-            if (lastMessage == LLMMessage.User("Give me the list of recipes for Carbonara")) {
+            if (lastMessage == LLMMessage.User("Give me the list of recipes for a Carbonara")) {
                 Answers.RequireToolExecution(SearchRecipesTool.name, mapOf("query" to "Carbonara"))
             } else {
                 Answers.DontKnowHowToRespond()
@@ -55,9 +55,9 @@ class RecipesAgentTest {
     }
 
     @Test
-    fun `agent returns streaming task updates`() {
+    fun `provides all recipes for a carbonara`() {
         val response = client.messageStream(
-            Message(MessageId.of("test-msg"), ROLE_USER, listOf(Part.Text("Carbonara")))
+            Message(MessageId.of("test-msg"), ROLE_USER, listOf(Part.Text("Give me the list of recipes for a Carbonara")))
         ).valueOrNull()!! as ResponseStream
 
         val items = response.toList()

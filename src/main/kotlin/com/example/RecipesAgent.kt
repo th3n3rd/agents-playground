@@ -87,7 +87,7 @@ object RecipesAgent {
                             status = TaskStatus(
                                 state = TaskState.TASK_STATE_COMPLETED,
                                 message = org.http4k.ai.a2a.model.Message(
-                                    messageId = MessageId.Companion.random(),
+                                    messageId = MessageId.random(),
                                     role = A2ARole.ROLE_AGENT,
                                     parts = listOf(
                                         Part.Text(
@@ -113,7 +113,7 @@ object RecipesAgent {
         llmTools: List<LLMTool>,
         mcpClient: McpClient
     ): Result<ChatResponse, LLMError> =
-        llm.ask(Message.User("Give me the list of recipes for $query"), history, llmTools)
+        llm.ask(Message.User(query), history, llmTools)
             .flatMap { it.message.toolRequests.first().asSuccess() } // TODO: need to understand how to deal with many tool calls
             .flatMap { mcpClient.executeTool(it) }
             .flatMap { llm.ask(it.result, history, llmTools) }
