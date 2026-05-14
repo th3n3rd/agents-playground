@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.3.10"
-http4k = "6.46.0.0"
+http4k = "6.47.0.0"
 shadow = "9.3.0"
 junit = "6.0.3"
 
