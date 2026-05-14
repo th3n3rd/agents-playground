@@ -65,6 +65,7 @@ dependencies {
 
     implementation(platform(libs.http4k.bom))
     implementation(libs.http4k.ai.a2a.sdk)
+    implementation(libs.http4k.ai.a2a.client)
     implementation(libs.http4k.ai.llm.core)
     implementation(libs.http4k.ai.llm.openai)
     implementation(libs.http4k.ai.llm.openai.fake)
@@ -75,7 +76,6 @@ dependencies {
     implementation(libs.http4k.core)
     implementation(libs.http4k.format.moshi)
     implementation(libs.http4k.server.jetty)
-    testImplementation(libs.http4k.ai.a2a.client)
     testImplementation(libs.http4k.server.jetty)
     testImplementation(libs.http4k.testing.hamkrest)
     testImplementation(libs.http4k.testing.kotest)

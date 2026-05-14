@@ -5,6 +5,7 @@ import dev.forkhandles.result4k.asSuccess
 import dev.forkhandles.result4k.flatMap
 import dev.forkhandles.result4k.peek
 import dev.forkhandles.result4k.valueOrNull
+import org.http4k.ai.a2a.client.A2AClient
 import org.http4k.ai.a2a.model.A2ARole
 import org.http4k.ai.a2a.model.AgentCapabilities
 import org.http4k.ai.a2a.model.AgentCard
@@ -29,55 +30,61 @@ import org.http4k.ai.llm.model.Message
 import org.http4k.ai.llm.model.ModelParams
 import org.http4k.ai.llm.tools.LLMTool
 import org.http4k.ai.llm.tools.ToolRequest
-import org.http4k.ai.mcp.client.McpClient
-import org.http4k.ai.mcp.protocol.messages.toLLM
-import org.http4k.ai.mcp.testing.testMcpClient
-import org.http4k.ai.mcp.toLLM
 import org.http4k.connect.model.MimeType
 import org.http4k.connect.openai.OpenAIModels
-import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.routing.a2aJsonRpc
-import java.time.Duration
-import java.util.*
+import java.util.UUID
 
-object RecipesAgent {
+object CoordinatorAgent {
     val card = AgentCard(
-        name = "recipe-agent",
+        name = "cooking-assistant-agent",
         version = Version.of("1.0.0"),
-        description = "An agent that helps users find and explore recipes",
+        description = "A cooking assistant that helps users discover recipes, explore meal ideas, and plan their shopping",
         capabilities = AgentCapabilities(streaming = true),
         defaultInputModes = listOf(MimeType.of("text/plain")),
         defaultOutputModes = listOf(MimeType.of("text/plain")),
         skills = listOf(
             AgentSkill(
-                id = SkillId.of("search-recipes"),
-                name = "Search Recipe",
-                description = "Search for recipes by ingredients or cuisine",
-                tags = listOf("cooking", "recipes", "search")
+                id = SkillId.of("cooking-assistance"),
+                name = "cooking-assistance",
+                description = "Answer any cooking-related question: find recipes, get ingredient lists, and build shopping lists",
+                tags = listOf("cooking", "recipes", "shopping", "meal-planning")
             )
         )
     )
 
-    operator fun invoke(llm: Chat, outgoing: HttpHandler): PolyHandler {
-        val recipes = MealApiRecipes(outgoing)
+    operator fun invoke(llm: Chat, subAgents: List<A2AClient>): PolyHandler {
+        val subAgent = subAgents.first() // TODO: needs to support multiple sub-agents
 
-        val mcpClient = RecipesMcp(recipes)
-            .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
-            .apply { start(Duration.ofSeconds(1)) }
-
-        val llmTools = mcpClient.tools()
-            .list()
-            .valueOrNull()
-            .orEmpty()
-            .map { it.toLLM() }
+        val llmTools = listOf(subAgent)
+            .map { it.agentCard() }
+            .mapNotNull { it.valueOrNull() }
+            .map { card ->
+                LLMTool(
+                    name = card.name,
+                    description = """
+                    ${card.description}
+                    
+                    Skills: ${card.skills.joinToString { "${it.name}: ${it.description}" }}
+                    """.trimIndent(),
+                    inputSchema = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "query" to mapOf(
+                                "type" to "string",
+                                "description" to "The request to send to this agent"
+                            )
+                        ),
+                        "required" to listOf("query")
+                    )
+                )
+            }
 
         return a2aJsonRpc(card, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
             val taskId = TaskId.of(UUID.randomUUID().toString())
             val contextId = ContextId.of(UUID.randomUUID().toString())
-
-            val history = mutableListOf<Message>()
 
             ResponseStream(sequence {
                 yield(
@@ -89,7 +96,9 @@ object RecipesAgent {
                     )
                 )
 
-                processQuery(llm, query, history, llmTools, mcpClient).peek {
+                val history = mutableListOf<Message>()
+
+                processQuery(llm, query, history, llmTools, subAgent).peek {
                     yield(
                         Task(
                             id = taskId,
@@ -120,17 +129,38 @@ object RecipesAgent {
         query: String,
         history: MutableList<Message>,
         llmTools: List<LLMTool>,
-        mcpClient: McpClient
+        subAgent: A2AClient
     ): Result<ChatResponse, LLMError> =
         llm.ask(Message.User(query), history, llmTools)
-            .flatMap { it.message.toolRequests.first().asSuccess() } // TODO: need to understand how to deal with many tool calls
-            .flatMap { mcpClient.executeTool(it) }
-            .flatMap { llm.ask(it.result, history, llmTools) }
+            .flatMap {
+                it.message.toolRequests.first().asSuccess()
+            } // TODO: need to understand how to deal with many tool calls
+            .flatMap { subAgent.delegate(it) }
+            .flatMap { llm.ask(it, history, llmTools) }
 
-    private fun McpClient.executeTool(request: ToolRequest) = tools()
-        .call(request.name, org.http4k.ai.mcp.ToolRequest(request.arguments))
-        .valueOrNull()!!
-        .toLLM(request)
+    private fun A2AClient.delegate(request: ToolRequest): Result<Message.ToolResult, Nothing> {
+        val query = request.arguments["query"].toString()
+
+        val result = message( // TODO: support streaming (i.e. non blocking) responses
+            org.http4k.ai.a2a.model.Message(
+                MessageId.random(),
+                A2ARole.ROLE_USER,
+                listOf(Part.Text(query))
+            ) // TODO: need to understand what's the right parameter(s)
+        ).valueOrNull()!!
+            .let { it as Task }
+            .status
+            .message
+            ?.parts?.filterIsInstance<Part.Text>()
+            ?.joinToString("\n") { it.text }
+            .orEmpty()
+
+        return Message.ToolResult(
+            id = request.id,
+            tool = request.name,
+            text = result
+        ).asSuccess()
+    }
 
     private fun Chat.ask(
         message: Message,

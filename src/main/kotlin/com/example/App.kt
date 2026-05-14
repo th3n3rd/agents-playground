@@ -1,8 +1,8 @@
 package com.example
 
+import org.http4k.ai.a2a.client.testA2AJsonRpcClient
 import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.OpenAI
-import org.http4k.ai.mcp.testing.testMcpClient
 import org.http4k.ai.model.ApiKey
 import org.http4k.client.JavaHttpClient
 import org.http4k.connect.openai.FakeOpenAI
@@ -10,18 +10,20 @@ import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.core.then
 import org.http4k.filter.DebuggingFilters.PrintRequest
+import org.http4k.filter.debug
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
-import java.time.Duration
 
 object App {
     operator fun invoke(
         llm: Chat,
         outgoing: HttpHandler = JavaHttpClient()
     ): PolyHandler {
-        val recipeAgent = RecipesAgent(llm, outgoing)
+        val recipeAgent = RecipesAgent(llm, outgoing).debug()
 
-        return recipeAgent
+        return CoordinatorAgent(llm, listOf(
+            recipeAgent.testA2AJsonRpcClient()
+        ))
     }
 }
 
