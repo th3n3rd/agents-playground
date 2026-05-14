@@ -59,11 +59,10 @@ object RecipesAgent {
     operator fun invoke(llm: Chat, outgoing: HttpHandler): PolyHandler {
         val recipes = MealApiRecipes(outgoing)
 
-        val mcpClient = RecipesMcp(recipes)
+        val mcpTools = RecipesMcp(recipes)
             .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
             .apply { start(Duration.ofSeconds(1)) }
-
-        val mcpTools = McpLLMTools(mcpClient)
+            .let { McpLLMTools(it) }
 
         return a2aJsonRpc(card, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }

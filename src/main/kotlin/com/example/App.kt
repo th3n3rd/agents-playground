@@ -21,9 +21,12 @@ object App {
     ): PolyHandler {
         val recipeAgent = RecipesAgent(llm, outgoing).debug()
 
-        return CoordinatorAgent(llm, listOf(
-            recipeAgent.testA2AJsonRpcClient()
-        ))
+        return CoordinatorAgent(
+            llm = llm,
+            tools = recipeAgent
+                .testA2AJsonRpcClient()
+                .let { AgentTool(it) }
+        )
     }
 }
 
