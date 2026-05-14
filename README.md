@@ -24,4 +24,6 @@ Tests run fully in-memory — no network, no ports.
 - Agent responses are typically streamed
 
 - The pattern is typically Agent orchestrator + Sub-agents for different domains/boundary
+  - sub-agents are considered also tools
+  - sub-agents cards are sent to the LLM for decision making together with MCP tools
 
