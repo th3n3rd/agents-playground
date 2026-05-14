@@ -1,8 +1,8 @@
 package com.example
 
 import dev.forkhandles.result4k.Result
-import dev.forkhandles.result4k.asSuccess
 import dev.forkhandles.result4k.flatMap
+import dev.forkhandles.result4k.map
 import dev.forkhandles.result4k.peek
 import dev.forkhandles.result4k.valueOrNull
 import org.http4k.ai.a2a.model.A2ARole
@@ -82,31 +82,32 @@ object RecipesAgent {
                     )
                 )
 
-                processQuery(llm, query, history, mcpTools).peek {
-                    yield(
-                        Task(
-                            id = taskId,
-                            status = TaskStatus(
-                                state = TaskState.TASK_STATE_COMPLETED,
-                                message = org.http4k.ai.a2a.model.Message(
-                                    messageId = MessageId.random(),
-                                    role = A2ARole.ROLE_AGENT,
-                                    parts = listOf(
-                                        Part.Text(
-                                            it.message.contents
-                                                .filterIsInstance<Content.Text>()
-                                                .joinToString("\n") { it.text }
-                                        )
-                                    )
-                                )
+                processQuery(llm, query, history, mcpTools)
+                    .map { answer(it) }
+                    .peek {
+                        yield(
+                            Task(
+                                id = taskId,
+                                status = TaskStatus(state = TaskState.TASK_STATE_COMPLETED, message = it),
+                                contextId = contextId
                             ),
-                            contextId = contextId
-                        ),
-                    )
-                }
+                        )
+                    }
             })
         })
     }
+
+    private fun answer(response: ChatResponse): org.http4k.ai.a2a.model.Message = org.http4k.ai.a2a.model.Message(
+        messageId = MessageId.random(),
+        role = A2ARole.ROLE_AGENT,
+        parts = listOf(
+            Part.Text(
+                response.message.contents
+                    .filterIsInstance<Content.Text>()
+                    .joinToString("\n") { it.text }
+            )
+        )
+    )
 
     private fun processQuery(
         llm: Chat,
