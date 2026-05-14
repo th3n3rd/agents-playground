@@ -27,12 +27,9 @@ import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.model.Content
 import org.http4k.ai.llm.model.Message
 import org.http4k.ai.llm.model.ModelParams
-import org.http4k.ai.llm.tools.LLMTool
-import org.http4k.ai.llm.tools.ToolRequest
-import org.http4k.ai.mcp.client.McpClient
-import org.http4k.ai.mcp.protocol.messages.toLLM
+import org.http4k.ai.llm.tools.LLMTools
+import org.http4k.ai.llm.tools.McpLLMTools
 import org.http4k.ai.mcp.testing.testMcpClient
-import org.http4k.ai.mcp.toLLM
 import org.http4k.connect.model.MimeType
 import org.http4k.connect.openai.OpenAIModels
 import org.http4k.core.HttpHandler
@@ -66,11 +63,7 @@ object RecipesAgent {
             .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
             .apply { start(Duration.ofSeconds(1)) }
 
-        val llmTools = mcpClient.tools()
-            .list()
-            .valueOrNull()
-            .orEmpty()
-            .map { it.toLLM() }
+        val mcpTools = McpLLMTools(mcpClient)
 
         return a2aJsonRpc(card, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
@@ -89,7 +82,7 @@ object RecipesAgent {
                     )
                 )
 
-                processQuery(llm, query, history, llmTools, mcpClient).peek {
+                processQuery(llm, query, history, mcpTools).peek {
                     yield(
                         Task(
                             id = taskId,
@@ -119,23 +112,16 @@ object RecipesAgent {
         llm: Chat,
         query: String,
         history: MutableList<Message>,
-        llmTools: List<LLMTool>,
-        mcpClient: McpClient
+        mcpTools: McpLLMTools
     ): Result<ChatResponse, LLMError> =
-        llm.ask(Message.User(query), history, llmTools)
-            .flatMap { it.message.toolRequests.first().asSuccess() } // TODO: need to understand how to deal with many tool calls
-            .flatMap { mcpClient.executeTool(it) }
-            .flatMap { llm.ask(it.result, history, llmTools) }
-
-    private fun McpClient.executeTool(request: ToolRequest) = tools()
-        .call(request.name, org.http4k.ai.mcp.ToolRequest(request.arguments))
-        .valueOrNull()!!
-        .toLLM(request)
+        llm.ask(Message.User(query), history, mcpTools)
+            .flatMap { mcpTools(it.message.toolRequests.first()) } // TODO: need to understand how to deal with many tool calls
+            .flatMap { llm.ask(it.result, history, mcpTools) }
 
     private fun Chat.ask(
         message: Message,
         history: MutableList<Message>,
-        llmTools: List<LLMTool> = emptyList()
+        llmTools: LLMTools
     ): LLMResult<ChatResponse> {
         history.add(message)
         return this(
@@ -143,7 +129,7 @@ object RecipesAgent {
                 messages = history,
                 params = ModelParams(
                     modelName = OpenAIModels.GPT4,
-                    tools = llmTools
+                    tools = llmTools.list().valueOrNull()!!
                 )
             )
         )
