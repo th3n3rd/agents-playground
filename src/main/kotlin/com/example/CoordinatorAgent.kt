@@ -69,9 +69,15 @@ object CoordinatorAgent {
 
                 val history = mutableListOf<Message>()
 
-                llm.ask(User(query), history, tools)
-                    .flatMap { tools(it.message.toolRequests.first()) } // TODO: need to understand how to deal with many tool calls
-                    .flatMap { llm.ask(it.result, history, tools) }
+                var result = llm.ask(User(query), history, tools)
+
+                while (result.valueOrNull()?.message?.toolRequests?.isNotEmpty() == true) {
+                    result = result
+                        .flatMap { tools(it.message.toolRequests.first()) }
+                        .flatMap { llm.ask(it.result, history, tools) }
+                }
+
+                result
                     .map { answer(it) }
                     .peek {
                         yield(
