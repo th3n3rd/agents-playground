@@ -3,6 +3,8 @@ package com.example
 import org.http4k.ai.a2a.client.testA2AJsonRpcClient
 import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.OpenAI
+import org.http4k.ai.llm.tools.McpLLMTools
+import org.http4k.ai.mcp.testing.testMcpClient
 import org.http4k.ai.model.ApiKey
 import org.http4k.client.JavaHttpClient
 import org.http4k.connect.openai.FakeOpenAI
@@ -13,18 +15,27 @@ import org.http4k.filter.DebuggingFilters.PrintRequest
 import org.http4k.filter.debug
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
+import java.time.Duration
 
 object App {
     operator fun invoke(
         llm: Chat,
         outgoing: HttpHandler = JavaHttpClient()
     ): PolyHandler {
-        val recipeAgent = RecipesAgent(llm, outgoing).debug()
+        val recipes = MealApiRecipes(outgoing)
+
+        val recipeAgent = RecipesAgent(
+            llm = llm,
+            tools = RecipesMcp(recipes)
+                .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
+                .apply { start(Duration.ofSeconds(1)) }
+                .let { McpLLMTools(it) }
+        )
 
         return CoordinatorAgent(
             llm = llm,
             tools = recipeAgent
-                .testA2AJsonRpcClient()
+                .testA2AJsonRpcClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory a2a handler
                 .let { AgentTool(it) }
         )
     }

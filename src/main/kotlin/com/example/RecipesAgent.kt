@@ -1,6 +1,5 @@
 package com.example
 
-import dev.forkhandles.result4k.Result
 import dev.forkhandles.result4k.flatMap
 import dev.forkhandles.result4k.map
 import dev.forkhandles.result4k.peek
@@ -19,13 +18,13 @@ import org.http4k.ai.a2a.model.TaskId
 import org.http4k.ai.a2a.model.TaskState
 import org.http4k.ai.a2a.model.TaskStatus
 import org.http4k.ai.a2a.model.Version
-import org.http4k.ai.llm.LLMError
 import org.http4k.ai.llm.LLMResult
 import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.ChatRequest
 import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.model.Content
 import org.http4k.ai.llm.model.Message
+import org.http4k.ai.llm.model.Message.User
 import org.http4k.ai.llm.model.ModelParams
 import org.http4k.ai.llm.tools.LLMTools
 import org.http4k.ai.llm.tools.McpLLMTools
@@ -56,14 +55,7 @@ object RecipesAgent {
         )
     )
 
-    operator fun invoke(llm: Chat, outgoing: HttpHandler): PolyHandler {
-        val recipes = MealApiRecipes(outgoing)
-
-        val mcpTools = RecipesMcp(recipes)
-            .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
-            .apply { start(Duration.ofSeconds(1)) }
-            .let { McpLLMTools(it) }
-
+    operator fun invoke(llm: Chat, tools: LLMTools): PolyHandler {
         return a2aJsonRpc(card, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
             val taskId = TaskId.of(UUID.randomUUID().toString())
@@ -81,7 +73,9 @@ object RecipesAgent {
                     )
                 )
 
-                processQuery(llm, query, history, mcpTools)
+                llm.ask(User(query), history, tools)
+                    .flatMap { tools(it.message.toolRequests.first()) } // TODO: need to understand how to deal with many tool calls
+                    .flatMap { llm.ask(it.result, history, tools) }
                     .map { answer(it) }
                     .peek {
                         yield(
@@ -107,16 +101,6 @@ object RecipesAgent {
             )
         )
     )
-
-    private fun processQuery(
-        llm: Chat,
-        query: String,
-        history: MutableList<Message>,
-        mcpTools: McpLLMTools
-    ): Result<ChatResponse, LLMError> =
-        llm.ask(Message.User(query), history, mcpTools)
-            .flatMap { mcpTools(it.message.toolRequests.first()) } // TODO: need to understand how to deal with many tool calls
-            .flatMap { llm.ask(it.result, history, mcpTools) }
 
     private fun Chat.ask(
         message: Message,
