@@ -3,6 +3,7 @@ package com.example
 import dev.forkhandles.result4k.Result
 import dev.forkhandles.result4k.asSuccess
 import dev.forkhandles.result4k.flatMap
+import dev.forkhandles.result4k.map
 import dev.forkhandles.result4k.peek
 import dev.forkhandles.result4k.valueOrNull
 import org.http4k.ai.a2a.client.A2AClient
@@ -79,28 +80,17 @@ object CoordinatorAgent {
 
                 val history = mutableListOf<Message>()
 
-                processQuery(llm, query, history, llmTools, subAgent).peek {
-                    yield(
-                        Task(
-                            id = taskId,
-                            status = TaskStatus(
-                                state = TaskState.TASK_STATE_COMPLETED,
-                                message = org.http4k.ai.a2a.model.Message(
-                                    messageId = MessageId.random(),
-                                    role = A2ARole.ROLE_AGENT,
-                                    parts = listOf(
-                                        Part.Text(
-                                            it.message.contents
-                                                .filterIsInstance<Content.Text>()
-                                                .joinToString("\n") { it.text }
-                                        )
-                                    )
-                                )
+                processQuery(llm, query, history, llmTools, subAgent)
+                    .map { answer(it) }
+                    .peek {
+                        yield(
+                            Task(
+                                id = taskId,
+                                status = TaskStatus(state = TaskState.TASK_STATE_COMPLETED, message = it),
+                                contextId = contextId
                             ),
-                            contextId = contextId
-                        ),
-                    )
-                }
+                        )
+                    }
             })
         })
     }
@@ -113,11 +103,20 @@ object CoordinatorAgent {
         subAgent: A2AClient
     ): Result<ChatResponse, LLMError> =
         llm.ask(Message.User(query), history, llmTools)
-            .flatMap {
-                it.message.toolRequests.first().asSuccess()
-            } // TODO: need to understand how to deal with many tool calls
-            .flatMap { subAgent.delegate(it) }
+            .flatMap { subAgent.delegate(it.message.toolRequests.first()) } // TODO: need to understand how to deal with many tool calls
             .flatMap { llm.ask(it, history, llmTools) }
+
+    private fun answer(response: ChatResponse): org.http4k.ai.a2a.model.Message = org.http4k.ai.a2a.model.Message(
+        messageId = MessageId.random(),
+        role = A2ARole.ROLE_AGENT,
+        parts = listOf(
+            Part.Text(
+                response.message.contents
+                    .filterIsInstance<Content.Text>()
+                    .joinToString("\n") { it.text }
+            )
+        )
+    )
 
     private fun A2AClient.delegate(request: ToolRequest): Result<Message.ToolResult, Nothing> {
         val query = request.arguments["query"].toString()
@@ -160,22 +159,3 @@ object CoordinatorAgent {
         )
     }
 }
-
-fun AgentCard.toLLM(): LLMTool = LLMTool(
-    name = name,
-    description = """
-        $description
-        
-        Skills: ${skills.joinToString { "${it.name}: ${it.description}" }}
-        """.trimIndent(),
-    inputSchema = mapOf(
-        "type" to "object",
-        "properties" to mapOf(
-            "query" to mapOf(
-                "type" to "string",
-                "description" to "The request to send to this agent"
-            )
-        ),
-        "required" to listOf("query")
-    )
-)
