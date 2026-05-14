@@ -58,8 +58,8 @@ object RecipesAgent {
     operator fun invoke(llm: Chat, tools: LLMTools = NoTools()): PolyHandler {
         return a2aJsonRpc(card, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
-            val taskId = TaskId.of(UUID.randomUUID().toString())
-            val contextId = ContextId.of(UUID.randomUUID().toString())
+            val taskId = TaskId.random()
+            val contextId = ContextId.random()
 
             ResponseStream(sequence {
                 yield(

@@ -39,8 +39,8 @@ object ShoppingListAgent {
         return a2aJsonRpc(card, messageHandler = { request ->
             val recipeText = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
             val query = "Generate a shopping list for the following recipe:\n\n$recipeText"
-            val taskId = TaskId.of(UUID.randomUUID().toString())
-            val contextId = ContextId.of(UUID.randomUUID().toString())
+            val taskId = TaskId.random()
+            val contextId = ContextId.random()
 
             ResponseStream(sequence {
                 yield(
