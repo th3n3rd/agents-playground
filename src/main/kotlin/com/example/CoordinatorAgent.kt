@@ -60,26 +60,7 @@ object CoordinatorAgent {
         val llmTools = listOf(subAgent)
             .map { it.agentCard() }
             .mapNotNull { it.valueOrNull() }
-            .map { card ->
-                LLMTool(
-                    name = card.name,
-                    description = """
-                    ${card.description}
-                    
-                    Skills: ${card.skills.joinToString { "${it.name}: ${it.description}" }}
-                    """.trimIndent(),
-                    inputSchema = mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "query" to mapOf(
-                                "type" to "string",
-                                "description" to "The request to send to this agent"
-                            )
-                        ),
-                        "required" to listOf("query")
-                    )
-                )
-            }
+            .map { it.toLLM() }
 
         return a2aJsonRpc(card, messageHandler = { request ->
             val query = request.message.parts.filterIsInstance<Part.Text>().joinToString(" ") { it.text }
@@ -179,3 +160,22 @@ object CoordinatorAgent {
         )
     }
 }
+
+fun AgentCard.toLLM(): LLMTool = LLMTool(
+    name = name,
+    description = """
+        $description
+        
+        Skills: ${skills.joinToString { "${it.name}: ${it.description}" }}
+        """.trimIndent(),
+    inputSchema = mapOf(
+        "type" to "object",
+        "properties" to mapOf(
+            "query" to mapOf(
+                "type" to "string",
+                "description" to "The request to send to this agent"
+            )
+        ),
+        "required" to listOf("query")
+    )
+)
