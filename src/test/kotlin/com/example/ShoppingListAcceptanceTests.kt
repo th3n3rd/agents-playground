@@ -50,7 +50,7 @@ class ShoppingListAcceptanceTests {
         { request ->
             val lastMessage = request.messages.last()
             if (lastMessage is LLMMessage.ToolResult) {
-                Answers.RequireToolExecution(ToolName.of(ShoppingListAgent.card.name), mapOf("query" to lastMessage.text))
+                Answers.RequireToolExecution(ToolName.of(ShoppingListAgent.card.name), mapOf("query" to """Generate a shopping list for the following recipe:\n\n${lastMessage.text}""""))
             } else {
                 Answers.DontKnowHowToRespond()
             }
