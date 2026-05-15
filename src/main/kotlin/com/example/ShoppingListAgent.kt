@@ -1,7 +1,5 @@
 package com.example
 
-import dev.forkhandles.result4k.map
-import dev.forkhandles.result4k.mapFailure
 import dev.forkhandles.result4k.peek
 import dev.forkhandles.result4k.peekFailure
 import org.http4k.ai.a2a.model.A2ARole
@@ -11,6 +9,7 @@ import org.http4k.ai.a2a.model.AgentSkill
 import org.http4k.ai.a2a.model.ContextId
 import org.http4k.ai.a2a.model.Message
 import org.http4k.ai.a2a.model.MessageId
+import org.http4k.ai.a2a.model.MessageRequest
 import org.http4k.ai.a2a.model.Part
 import org.http4k.ai.a2a.model.ResponseStream
 import org.http4k.ai.a2a.model.SkillId
@@ -54,40 +53,35 @@ object ShoppingListAgent {
             val contextId = ContextId.random()
 
             ResponseStream(sequence {
-                yield(
-                    Task(
-                        id = taskId,
-                        status = TaskStatus(state = TaskState.TASK_STATE_WORKING),
-                        contextId = contextId,
-                        history = listOf(request.message)
-                    )
-                )
+                yield(inProgress(taskId, request, contextId))
 
                 llm.reactLoop(query, tools)
-                    .map { answer(it) }
-                    .mapFailure { answer(it) }
-                    .peek {
-                        yield(
-                            Task(
-                                id = taskId,
-                                status = TaskStatus(state = TaskState.TASK_STATE_COMPLETED, message = it),
-                                contextId = contextId
-                            )
-                        )
-                    }
-                    .peekFailure {
-                        yield(
-                            Task(
-                                id = taskId,
-                                status = TaskStatus(state = TaskState.TASK_STATE_FAILED, message = it)
-                            )
-                        )
-                    }
+                    .peek { yield(completed(taskId, answer(it), contextId)) }
+                    .peekFailure { yield(failed(taskId, answer(it), contextId)) }
             })
         })
     }
 
-    private fun answer(response: ChatResponse): org.http4k.ai.a2a.model.Message = Message(
+    private fun inProgress(taskId: TaskId, request: MessageRequest, contextId: ContextId): Task = Task(
+        id = taskId,
+        status = TaskStatus(state = TaskState.TASK_STATE_WORKING),
+        contextId = contextId,
+        history = listOf(request.message)
+    )
+
+    private fun completed(taskId: TaskId, message: Message, contextId: ContextId): Task = Task(
+        id = taskId,
+        status = TaskStatus(state = TaskState.TASK_STATE_COMPLETED, message = message),
+        contextId = contextId
+    )
+
+    private fun failed(taskId: TaskId, message: Message, contextId: ContextId): Task = Task(
+        id = taskId,
+        status = TaskStatus(state = TaskState.TASK_STATE_FAILED, message = message),
+        contextId = contextId
+    )
+
+    private fun answer(response: ChatResponse): Message = Message(
         messageId = MessageId.random(),
         role = A2ARole.ROLE_AGENT,
         parts = listOf(
@@ -99,7 +93,7 @@ object ShoppingListAgent {
         )
     )
 
-    private fun answer(error: LLMError): org.http4k.ai.a2a.model.Message = Message(
+    private fun answer(error: LLMError): Message = Message(
         messageId = MessageId.random(),
         role = A2ARole.ROLE_AGENT,
         parts = listOf(Part.Text(error.toString()))
