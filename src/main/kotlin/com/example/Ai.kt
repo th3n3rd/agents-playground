@@ -78,6 +78,42 @@ interface ReActAgent {
         contextId = contextId
     )
 
+    private fun Chat.reactLoop(query: String, tools: LLMTools): LLMResult<ChatResponse> {
+        val history = mutableListOf<LLMMessage>()
+
+        fun act(toolRequests: List<ToolRequest>) = toolRequests
+            .map { req -> tools(req).map { it.result } }
+            .allValues()
+
+        fun remember(toolResults: List<LLMMessage.ToolResult>) =
+            toolResults.forEach { history.add(it) }
+
+        fun reason() = this(
+            ChatRequest(
+                messages = history,
+                params = ModelParams(
+                    modelName = ModelName.inherited(),
+                    tools = tools.list().valueOrNull()!!
+                )
+            )
+        )
+
+        fun loop(response: ChatResponse): LLMResult<ChatResponse> {
+            if (response.message.toolRequests.isEmpty()) {
+                return Success(response)
+            }
+
+            return act(response.message.toolRequests)
+                .peek { remember(it) }
+                .flatMap { reason() }
+                .flatMap { loop(it) }
+        }
+
+        history.add(User(query))
+
+        return reason().flatMap { loop(it) }
+    }
+
     private fun answer(response: ChatResponse): Message = Message(
         messageId = MessageId.random(),
         role = A2ARole.ROLE_AGENT,
@@ -115,42 +151,6 @@ fun AgentCard.toLLM(): LLMTool = LLMTool(
         "required" to listOf("query")
     )
 )
-
-fun Chat.reactLoop(query: String, tools: LLMTools): LLMResult<ChatResponse> {
-    val history = mutableListOf<LLMMessage>()
-
-    fun act(toolRequests: List<ToolRequest>) = toolRequests
-        .map { req -> tools(req).map { it.result } }
-        .allValues()
-
-    fun remember(toolResults: List<LLMMessage.ToolResult>) =
-        toolResults.forEach { history.add(it) }
-
-    fun reason() = this(
-        ChatRequest(
-            messages = history,
-            params = ModelParams(
-                modelName = ModelName.inherited(),
-                tools = tools.list().valueOrNull()!!
-            )
-        )
-    )
-
-    fun loop(response: ChatResponse): LLMResult<ChatResponse> {
-        if (response.message.toolRequests.isEmpty()) {
-            return Success(response)
-        }
-
-        return act(response.message.toolRequests)
-            .peek { remember(it) }
-            .flatMap { reason() }
-            .flatMap { loop(it) }
-    }
-
-    history.add(User(query))
-
-    return reason().flatMap { loop(it) }
-}
 
 class NoTools : LLMTools {
     override fun list(): LLMResult<List<LLMTool>> = emptyList<LLMTool>().asSuccess()
