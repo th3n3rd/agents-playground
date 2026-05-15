@@ -23,15 +23,12 @@ import org.http4k.ai.llm.chat.ChatRequest
 import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.model.Message.User
 import org.http4k.ai.llm.model.ModelParams
-import org.http4k.ai.llm.model.Message as LLMMessage
 import org.http4k.ai.llm.tools.LLMTool
 import org.http4k.ai.llm.tools.LLMTools
 import org.http4k.ai.llm.tools.ToolRequest
 import org.http4k.ai.llm.tools.ToolResponse
-import org.http4k.ai.mcp.model.apps.McpAppVisibility
 import org.http4k.ai.model.ModelName
-import org.http4k.connect.openai.OpenAIModels
-import java.lang.invoke.MethodHandles.loop
+import org.http4k.ai.llm.model.Message as LLMMessage
 
 fun AgentCard.toLLM(): LLMTool = LLMTool(
     name = name,

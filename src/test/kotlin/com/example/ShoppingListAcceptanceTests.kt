@@ -11,7 +11,6 @@ import org.http4k.ai.a2a.model.Part
 import org.http4k.ai.a2a.model.ResponseStream
 import org.http4k.ai.a2a.model.Task
 import org.http4k.ai.model.ToolName
-import org.http4k.connect.openai.OpenAIModels
 import org.http4k.routing.reverseProxy
 import org.junit.jupiter.api.Test
 import org.http4k.ai.llm.model.Message as LLMMessage

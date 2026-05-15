@@ -13,7 +13,6 @@ import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.core.then
 import org.http4k.filter.DebuggingFilters.PrintRequest
-import org.http4k.filter.debug
 import org.http4k.routing.tools
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
