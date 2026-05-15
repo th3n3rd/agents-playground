@@ -33,7 +33,12 @@ object App {
                 .let { McpLLMTools(it) }
         )
 
-        val shoppingListAgent = ShoppingListAgent(llm = llm)
+        val shoppingListAgent = ShoppingListAgent(
+            llm = llm,
+            tools = tools(
+                FormatShoppingListTool()
+            )
+        )
 
         return CoordinatorAgent(
             llm = llm,

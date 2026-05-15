@@ -59,23 +59,24 @@ class ShoppingListAcceptanceTests {
         { request ->
             val lastMessage = request.messages.last()
             if (lastMessage is LLMMessage.User) {
-                Answers.TextReply(
-                    """
-                    Shopping list for spaghetti alla carbonara
-
-                    - 320g Spaghetti
-                    - 6 Egg Yolks
-                    - Salt
-                    - 150g Bacon
-                    - 50g Pecorino
-                    - Black Pepper
-                    """.trimIndent()
+                Answers.RequireToolExecution(
+                    FormatShoppingListTool.definition.name,
+                    mapOf("ingredients" to listOf("320g Spaghetti", "6 Egg Yolks", "Salt", "150g Bacon", "50g Pecorino", "Black Pepper"))
                 )
             } else {
                 Answers.DontKnowHowToRespond()
             }
         },
-        // 6. CoordinatorAgent -> LLM: relay ShoppingListAgent result back to user
+        // 6. ShoppingListAgent -> LLM: summarise shopping list text
+        { request ->
+            val lastMessage = request.messages.last()
+            if (lastMessage is LLMMessage.ToolResult) {
+                Answers.TextReply("Shopping list for spaghetti alla carbonara\n\n${lastMessage.text}")
+            } else {
+                Answers.DontKnowHowToRespond()
+            }
+        },
+        // 7. CoordinatorAgent -> LLM: relay ShoppingListAgent result back to user
         { request ->
             val lastMessage = request.messages.last()
             if (lastMessage is LLMMessage.ToolResult) {
