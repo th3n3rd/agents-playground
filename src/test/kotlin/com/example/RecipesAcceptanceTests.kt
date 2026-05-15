@@ -59,7 +59,10 @@ class RecipesAcceptanceTests {
     )
 
     private val app = App(
-        llm = llm,
+        llm = FixedModelChat(
+            llm = llm,
+            model = ScriptedChat.model
+        ),
         outgoing = reverseProxy(mealApiServer.uri.authority to mealApiServer)
     )
 

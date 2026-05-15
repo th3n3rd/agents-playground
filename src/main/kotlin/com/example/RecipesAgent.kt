@@ -1,9 +1,9 @@
 package com.example
 
-import dev.forkhandles.result4k.flatMap
 import dev.forkhandles.result4k.map
+import dev.forkhandles.result4k.mapFailure
 import dev.forkhandles.result4k.peek
-import dev.forkhandles.result4k.valueOrNull
+import dev.forkhandles.result4k.peekFailure
 import org.http4k.ai.a2a.model.A2ARole
 import org.http4k.ai.a2a.model.AgentCapabilities
 import org.http4k.ai.a2a.model.AgentCard
@@ -18,24 +18,14 @@ import org.http4k.ai.a2a.model.TaskId
 import org.http4k.ai.a2a.model.TaskState
 import org.http4k.ai.a2a.model.TaskStatus
 import org.http4k.ai.a2a.model.Version
-import org.http4k.ai.llm.LLMResult
+import org.http4k.ai.llm.LLMError
 import org.http4k.ai.llm.chat.Chat
-import org.http4k.ai.llm.chat.ChatRequest
 import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.model.Content
-import org.http4k.ai.llm.model.Message
-import org.http4k.ai.llm.model.Message.User
-import org.http4k.ai.llm.model.ModelParams
 import org.http4k.ai.llm.tools.LLMTools
-import org.http4k.ai.llm.tools.McpLLMTools
-import org.http4k.ai.mcp.testing.testMcpClient
 import org.http4k.connect.model.MimeType
-import org.http4k.connect.openai.OpenAIModels
-import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.routing.a2aJsonRpc
-import java.time.Duration
-import java.util.*
 
 object RecipesAgent {
     val card = AgentCard(
@@ -73,6 +63,7 @@ object RecipesAgent {
 
                 llm.reactLoop(query, tools)
                     .map { answer(it) }
+                    .mapFailure { answer(it) }
                     .peek {
                         yield(
                             Task(
@@ -80,6 +71,14 @@ object RecipesAgent {
                                 status = TaskStatus(state = TaskState.TASK_STATE_COMPLETED, message = it),
                                 contextId = contextId
                             ),
+                        )
+                    }
+                    .peekFailure {
+                        yield(
+                            Task(
+                                id = taskId,
+                                status = TaskStatus(state = TaskState.TASK_STATE_FAILED, message = it)
+                            )
                         )
                     }
             })
@@ -98,20 +97,9 @@ object RecipesAgent {
         )
     )
 
-    private fun Chat.ask(
-        message: Message,
-        history: MutableList<Message>,
-        llmTools: LLMTools
-    ): LLMResult<ChatResponse> {
-        history.add(message)
-        return this(
-            ChatRequest(
-                messages = history,
-                params = ModelParams(
-                    modelName = OpenAIModels.GPT4,
-                    tools = llmTools.list().valueOrNull()!!
-                )
-            )
-        )
-    }
+    private fun answer(error: LLMError): org.http4k.ai.a2a.model.Message = org.http4k.ai.a2a.model.Message(
+        messageId = MessageId.random(),
+        role = A2ARole.ROLE_AGENT,
+        parts = listOf(Part.Text(error.toString()))
+    )
 }

@@ -28,7 +28,10 @@ import org.http4k.ai.llm.tools.LLMTool
 import org.http4k.ai.llm.tools.LLMTools
 import org.http4k.ai.llm.tools.ToolRequest
 import org.http4k.ai.llm.tools.ToolResponse
+import org.http4k.ai.mcp.model.apps.McpAppVisibility
+import org.http4k.ai.model.ModelName
 import org.http4k.connect.openai.OpenAIModels
+import java.lang.invoke.MethodHandles.loop
 
 fun AgentCard.toLLM(): LLMTool = LLMTool(
     name = name,
@@ -49,6 +52,14 @@ fun AgentCard.toLLM(): LLMTool = LLMTool(
     )
 )
 
+fun ModelName.Companion.inherited() = ModelName.of("inherited")
+
+class FixedModelChat(private val llm: Chat, private val model: ModelName) : Chat {
+    override fun invoke(request: ChatRequest): LLMResult<ChatResponse> {
+        return llm(request.copy(params = request.params.copy(modelName = model)))
+    }
+}
+
 fun Chat.reactLoop(query: String, tools: LLMTools): LLMResult<ChatResponse> {
     val history = mutableListOf<LLMMessage>()
 
@@ -63,7 +74,7 @@ fun Chat.reactLoop(query: String, tools: LLMTools): LLMResult<ChatResponse> {
         ChatRequest(
             messages = history,
             params = ModelParams(
-                modelName = OpenAIModels.GPT4,
+                modelName = ModelName.inherited(),
                 tools = tools.list().valueOrNull()!!
             )
         )

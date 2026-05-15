@@ -1,9 +1,12 @@
 package com.example
 
 import dev.forkhandles.result4k.map
+import dev.forkhandles.result4k.mapFailure
 import dev.forkhandles.result4k.peek
+import dev.forkhandles.result4k.peekFailure
 import dev.forkhandles.result4k.valueOrNull
 import org.http4k.ai.a2a.model.*
+import org.http4k.ai.llm.LLMError
 import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.ChatRequest
 import org.http4k.ai.llm.chat.ChatResponse
@@ -54,12 +57,21 @@ object ShoppingListAgent {
 
                 llm.reactLoop(query, tools)
                     .map { answer(it) }
+                    .mapFailure { answer(it) }
                     .peek {
                         yield(
                             Task(
                                 id = taskId,
                                 status = TaskStatus(state = TaskState.TASK_STATE_COMPLETED, message = it),
                                 contextId = contextId
+                            )
+                        )
+                    }
+                    .peekFailure {
+                        yield(
+                            Task(
+                                id = taskId,
+                                status = TaskStatus(state = TaskState.TASK_STATE_FAILED, message = it)
                             )
                         )
                     }
@@ -77,5 +89,11 @@ object ShoppingListAgent {
                     .joinToString("\n") { it.text }
             )
         )
+    )
+
+    private fun answer(error: LLMError): org.http4k.ai.a2a.model.Message = Message(
+        messageId = MessageId.random(),
+        role = A2ARole.ROLE_AGENT,
+        parts = listOf(Part.Text(error.toString()))
     )
 }

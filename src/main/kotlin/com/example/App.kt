@@ -8,6 +8,7 @@ import org.http4k.ai.mcp.testing.testMcpClient
 import org.http4k.ai.model.ApiKey
 import org.http4k.client.JavaHttpClient
 import org.http4k.connect.openai.FakeOpenAI
+import org.http4k.connect.openai.OpenAIModels
 import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.core.then
@@ -48,7 +49,10 @@ object App {
 fun main() {
     val openApiServer = FakeOpenAI()
 
-    val llm = Chat.OpenAI(apiKey = ApiKey.of("test"), http = openApiServer)
+    val llm = FixedModelChat(
+        llm = Chat.OpenAI(apiKey = ApiKey.of("test"), http = openApiServer),
+        model = OpenAIModels.GPT4
+    )
 
     val printingApp: PolyHandler = PrintRequest().then(App(llm))
 
