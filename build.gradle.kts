@@ -75,6 +75,7 @@ dependencies {
     implementation(libs.http4k.config)
     implementation(libs.http4k.core)
     implementation(libs.http4k.format.moshi)
+    implementation(libs.http4k.ops.opentelemetry)
     implementation(libs.http4k.server.jetty)
     testImplementation(libs.http4k.server.jetty)
     testImplementation(libs.http4k.testing.hamkrest)
@@ -82,5 +83,6 @@ dependencies {
     testImplementation(libs.junit.jupiter.api)
     testImplementation(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
+    testImplementation(libs.opentelemetry.sdk.testing)
 }
 

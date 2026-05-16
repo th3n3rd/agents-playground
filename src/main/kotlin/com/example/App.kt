@@ -1,5 +1,6 @@
 package com.example
 
+import io.opentelemetry.api.OpenTelemetry
 import org.http4k.ai.a2a.client.testA2AJsonRpcClient
 import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.OpenAI
@@ -13,6 +14,8 @@ import org.http4k.core.HttpHandler
 import org.http4k.core.PolyHandler
 import org.http4k.core.then
 import org.http4k.filter.DebuggingFilters.PrintRequest
+import org.http4k.filter.OpenTelemetryTracing
+import org.http4k.filter.PolyFilters
 import org.http4k.routing.tools
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
@@ -21,7 +24,8 @@ import java.time.Duration
 object App {
     operator fun invoke(
         llm: Chat,
-        outgoing: HttpHandler = JavaHttpClient()
+        outgoing: HttpHandler = JavaHttpClient(),
+        telemetry: OpenTelemetry = OpenTelemetry.noop()
     ): PolyHandler {
         val recipes = MealApiRecipes(outgoing)
 
@@ -30,21 +34,45 @@ object App {
             tools = RecipesMcp(recipes)
                 .testMcpClient() // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory mcp handler
                 .apply { start(Duration.ofSeconds(1)) }
-                .let { McpLLMTools(it) }
+                .let {
+                    TracedTools(
+                        source = RecipesAgent.card.name,
+                        destination = RecipesMcp.definition.name.value,
+                        tools = McpLLMTools(it),
+                        telemetry = telemetry
+                    )
+                }
         )
 
         val shoppingListAgent = ShoppingListAgent(
             llm = llm,
             tools = tools(
-                FormatShoppingListTool()
+                TracedTools(
+                    ShoppingListAgent.card.name,
+                    ShoppingListAgent.card.name,
+                    FormatShoppingListTool(),
+                    telemetry
+                )
             )
         )
 
-        return CoordinatorAgent(
-            llm = llm,
-            tools = tools(
-                AgentTool(recipeAgent.testA2AJsonRpcClient()), // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory a2a handler
-                AgentTool(shoppingListAgent.testA2AJsonRpcClient())
+        return PolyFilters.OpenTelemetryTracing(telemetry).then(
+            CoordinatorAgent(
+                llm = llm,
+                tools = tools(
+                    TracedTools(
+                        source = CoordinatorAgent.card.name,
+                        destination = RecipesAgent.card.name,
+                        tools = AgentTool(recipeAgent.testA2AJsonRpcClient()),
+                        telemetry = telemetry
+                    ), // TODO: should not use a test client BUT I am not sure yet how to create a client for an in-memory a2a handler
+                    TracedTools(
+                        source = CoordinatorAgent.card.name,
+                        destination = ShoppingListAgent.card.name,
+                        tools = AgentTool(shoppingListAgent.testA2AJsonRpcClient()),
+                        telemetry = telemetry
+                    )
+                )
             )
         )
     }

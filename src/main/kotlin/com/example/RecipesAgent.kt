@@ -9,6 +9,7 @@ import org.http4k.ai.mcp.ToolResponse
 import org.http4k.ai.mcp.model.Tool
 import org.http4k.ai.mcp.model.string
 import org.http4k.ai.mcp.protocol.ServerMetaData
+import org.http4k.ai.mcp.protocol.VersionedMcpEntity
 import org.http4k.ai.mcp.server.security.NoMcpSecurity
 import org.http4k.connect.model.MimeType
 import org.http4k.core.PolyHandler
@@ -35,6 +36,11 @@ object RecipesAgent : ReActAgent {
 }
 
 object RecipesMcp {
+    val definition = VersionedMcpEntity(
+        name = "recipes-mcp",
+        version = "1.0.0",
+    )
+
     operator fun invoke(recipes: Recipes): PolyHandler {
         return mcp(
             metadata = ServerMetaData("mcp-server", "0.0.1"),

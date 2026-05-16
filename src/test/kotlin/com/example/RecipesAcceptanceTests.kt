@@ -4,6 +4,7 @@ import com.natpryce.hamkrest.assertion.assertThat
 import com.natpryce.hamkrest.equalTo
 import dev.forkhandles.result4k.Success
 import dev.forkhandles.result4k.valueOrNull
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import org.http4k.ai.a2a.client.testA2AJsonRpcClient
 import org.http4k.ai.a2a.model.A2ARole.ROLE_USER
 import org.http4k.ai.a2a.model.Message
@@ -13,7 +14,9 @@ import org.http4k.ai.a2a.model.ResponseStream
 import org.http4k.ai.a2a.model.Task
 import org.http4k.ai.model.ToolName
 import org.http4k.routing.reverseProxy
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInfo
 import org.http4k.ai.llm.model.Message as LLMMessage
 
 class RecipesAcceptanceTests {
@@ -58,12 +61,16 @@ class RecipesAcceptanceTests {
         }
     )
 
+    private val traces = InMemorySpanExporter.create()
+    private val telemetry = ConfigurableTelemetry(traces)
+
     private val app = App(
         llm = FixedModelChat(
             llm = llm,
             model = ScriptedChat.model
         ),
-        outgoing = reverseProxy(mealApiServer.uri.authority to mealApiServer)
+        outgoing = reverseProxy(mealApiServer.uri.authority to mealApiServer),
+        telemetry = telemetry
     )
 
     private val client = app.testA2AJsonRpcClient()
@@ -90,5 +97,10 @@ class RecipesAcceptanceTests {
 
         1 Spaghetti alla Carbonara
         """.trimIndent()))
+    }
+
+    @AfterEach
+    fun tearDown(testInfo: TestInfo) {
+        GenerateSequenceDiagramsDocs(traces.finishedSpanItems, testInfo)
     }
 }

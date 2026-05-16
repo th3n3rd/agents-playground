@@ -3,6 +3,7 @@ kotlin = "2.3.10"
 http4k = "6.47.0.0"
 shadow = "9.3.0"
 junit = "6.0.3"
+opentelemetry = "1.62.0"
 
 [libraries]
 http4k-bom = { module = "org.http4k:http4k-bom", version.ref = "http4k" }
@@ -17,12 +18,14 @@ http4k-ai-mcp-testing = { module = "org.http4k.pro:http4k-ai-mcp-testing" }
 http4k-config = { module = "org.http4k:http4k-config" }
 http4k-core = { module = "org.http4k:http4k-core" }
 http4k-format-moshi = { module = "org.http4k:http4k-format-moshi" }
+http4k-ops-opentelemetry = { module = "org.http4k:http4k-ops-opentelemetry" }
 http4k-server-jetty = { module = "org.http4k:http4k-server-jetty" }
 http4k-testing-hamkrest = { module = "org.http4k:http4k-testing-hamkrest" }
 http4k-testing-kotest = { module = "org.http4k:http4k-testing-kotest" }
 junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit" }
+opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing", version.ref = "opentelemetry" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

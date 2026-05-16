@@ -10,6 +10,17 @@ import dev.forkhandles.result4k.mapFailure
 import dev.forkhandles.result4k.peek
 import dev.forkhandles.result4k.peekFailure
 import dev.forkhandles.result4k.valueOrNull
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanKind
+import io.opentelemetry.api.trace.StatusCode
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.resources.Resource
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import io.opentelemetry.sdk.trace.export.SpanExporter
 import org.http4k.ai.a2a.client.A2AClient
 import org.http4k.ai.a2a.model.A2ARole
 import org.http4k.ai.a2a.model.AgentCard
@@ -33,10 +44,12 @@ import org.http4k.ai.llm.model.Message.User
 import org.http4k.ai.llm.model.ModelParams
 import org.http4k.ai.llm.tools.LLMTool
 import org.http4k.ai.llm.tools.LLMTools
+import org.http4k.ai.llm.tools.McpLLMTools
 import org.http4k.ai.llm.tools.ToolRequest
 import org.http4k.ai.llm.tools.ToolResponse
 import org.http4k.ai.model.ModelName
 import org.http4k.core.PolyHandler
+import org.http4k.routing.RoutingToolHandler
 import org.http4k.routing.a2aJsonRpc
 import org.http4k.ai.llm.model.Message as LLMMessage
 
@@ -187,6 +200,62 @@ class AgentTool(val client: A2AClient) : LLMTools {
             text = result
         ).asSuccess()
     }
+}
+
+class TracedTools(private val source: String, private val destination: String, private val tools: LLMTools, private val telemetry: OpenTelemetry) : LLMTools by tools {
+    override fun invoke(request: ToolRequest): LLMResult<ToolResponse> {
+        return telemetry.getTracer("agents-playground")
+            .spanBuilder(
+                when (tools) {
+                    is AgentTool -> "task"
+                    is McpLLMTools -> "tools/call ${request.name}"
+                    is RoutingToolHandler -> request.name.value
+                    else -> ""
+                }
+            )
+            .let {
+                when (tools) {
+                    is AgentTool -> it.setAttribute("service.peer.name", destination)
+                    else -> it
+                        .setAttribute("service.name", source)
+                        .setAttribute("service.peer.name", destination)
+                }
+            }
+            .setSpanKind(SpanKind.CLIENT)
+            .startSpan()
+            .useSpan { tools(request) }
+    }
+}
+
+inline fun <T> Span.useSpan(block: () -> T): T {
+    val scope = makeCurrent()
+    return try {
+        block()
+    } catch (t: Throwable) {
+        recordException(t)
+        setStatus(StatusCode.ERROR)
+        throw t
+    } finally {
+        scope.close()
+        end()
+    }
+}
+
+object ConfigurableTelemetry {
+    operator fun invoke(exporter: SpanExporter): OpenTelemetrySdk = OpenTelemetrySdk
+        .builder()
+        .setTracerProvider(
+            SdkTracerProvider
+                .builder()
+                .addResource(
+                    Resource.create(
+                        Attributes.of(AttributeKey.stringKey("service.name"), "cooking-assistant")
+                    )
+                )
+                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .build()
+        )
+        .build()
 }
 
 fun ModelName.Companion.inherited() = ModelName.of("inherited")
