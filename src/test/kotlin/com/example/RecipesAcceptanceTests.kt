@@ -33,7 +33,7 @@ class RecipesAcceptanceTests {
         { request ->
             val lastMessage = request.messages.last()
             if (lastMessage == LLMMessage.User("Search recipes for Carbonara")) {
-                Answers.RequireToolExecution(SearchRecipesTool.name, mapOf("query" to "Carbonara"))
+                Answers.RequireToolExecution(SearchRecipesTool.definition.name, mapOf("query" to "Carbonara"))
             } else {
                 Answers.DontKnowHowToRespond()
             }

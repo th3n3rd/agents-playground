@@ -10,7 +10,6 @@ import org.http4k.ai.mcp.model.Tool
 import org.http4k.ai.mcp.model.string
 import org.http4k.ai.mcp.protocol.ServerMetaData
 import org.http4k.ai.mcp.server.security.NoMcpSecurity
-import org.http4k.ai.model.ToolName
 import org.http4k.connect.model.MimeType
 import org.http4k.core.PolyHandler
 import org.http4k.routing.bind
@@ -46,14 +45,14 @@ object RecipesMcp {
 }
 
 object SearchRecipesTool {
-    val name = ToolName.of("search_recipes")
     val query = Tool.Arg.string().required("query")
-
-    operator fun invoke(recipes: Recipes) = Tool(
-        name.value,
+    val definition = Tool(
+        "search_recipes",
         "Search recipes",
         query
-    ) bind {
+    )
+
+    operator fun invoke(recipes: Recipes) = definition bind {
         ToolResponse.Ok(
             recipes.findAllBy(query(it))
                 .mapIndexed { index, recipe -> "${index + 1} ${recipe.name}" }
