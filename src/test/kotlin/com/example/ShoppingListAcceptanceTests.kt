@@ -2,15 +2,8 @@ package com.example
 
 import com.natpryce.hamkrest.assertion.assertThat
 import com.natpryce.hamkrest.equalTo
-import dev.forkhandles.result4k.valueOrNull
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import org.http4k.ai.a2a.client.testA2AJsonRpcClient
-import org.http4k.ai.a2a.model.A2ARole.ROLE_USER
-import org.http4k.ai.a2a.model.Message
-import org.http4k.ai.a2a.model.MessageId
-import org.http4k.ai.a2a.model.Part
-import org.http4k.ai.a2a.model.ResponseStream
-import org.http4k.ai.a2a.model.Task
 import org.http4k.ai.model.ToolName
 import org.http4k.routing.reverseProxy
 import org.junit.jupiter.api.AfterEach
@@ -102,21 +95,13 @@ class ShoppingListAcceptanceTests {
         telemetry = telemetry,
     )
 
-    private val client = app.testA2AJsonRpcClient()
+    private val chef = AmateurChef(app.testA2AJsonRpcClient())
 
     @Test
     fun `provides the shopping list for 'spaghetti alla carbonara'`(info: TestInfo) {
-        val response = client.messageStream(
-            Message(
-                messageId = MessageId.random(),
-                role = ROLE_USER,
-                parts = listOf(Part.Text("Generate the shopping list for spaghetti alla carbonara"))
-            )
-        ).valueOrNull()!! as ResponseStream
+        val answer = chef.asks("Generate the shopping list for spaghetti alla carbonara")
 
-        val last = response.last() as Task
-
-        assertThat(last.status.message?.parts?.filterIsInstance<Part.Text>()?.joinToString("\n") { it.text }, equalTo("""
+        assertThat(answer, equalTo("""
         Shopping list for spaghetti alla carbonara
 
         - 320g Spaghetti
