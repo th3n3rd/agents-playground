@@ -2,7 +2,11 @@
 
 This example demonstrates how to build and test an A2A agent using http4k.
 
-![](./re-act-agent-loop.jpeg)
+![Shopping List Flow](./shopping-list-flow.jpeg)
+
+## Re-Act Loop
+
+![Re-Act Agent Loop](./re-act-agent-loop.jpeg)
 
 ## Learnings
 
