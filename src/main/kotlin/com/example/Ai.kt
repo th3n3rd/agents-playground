@@ -49,6 +49,9 @@ import org.http4k.ai.llm.tools.ToolRequest
 import org.http4k.ai.llm.tools.ToolResponse
 import org.http4k.ai.model.ModelName
 import org.http4k.core.PolyHandler
+import org.http4k.core.then
+import org.http4k.filter.OpenTelemetryTracing
+import org.http4k.filter.PolyFilters
 import org.http4k.routing.RoutingToolHandler
 import org.http4k.routing.a2aJsonRpc
 import org.http4k.ai.llm.model.Message as LLMMessage
@@ -240,6 +243,14 @@ inline fun <T> Span.useSpan(block: () -> T): T {
         end()
     }
 }
+
+fun LLMTools.traced(
+    source: String,
+    destination: String,
+    telemetry: OpenTelemetry
+) = TracedTools(source, destination, this, telemetry)
+
+fun PolyHandler.traced(telemetry: OpenTelemetry) = PolyFilters.OpenTelemetryTracing(telemetry).then(this)
 
 object ConfigurableTelemetry {
     operator fun invoke(exporter: SpanExporter): OpenTelemetrySdk = OpenTelemetrySdk
