@@ -27,6 +27,10 @@ object TracerBullet {
                             it.startedAt to "${it.from}->>+${it.to}: ${it.request}",
                             it.endedAt to "${it.to}-->>-${it.from}: ${it.response}"
                         )
+
+                        InteractionType.Local -> listOf(
+                            it.startedAt to "${it.from}->>${it.to}: ${it.request}",
+                        )
                     }
                 }
                 .sortedBy { it.first }
@@ -71,12 +75,16 @@ object TracerBullet {
                 response = span.httpResponseStatusCode()?.toString() ?: "",
                 startedAt = span.startEpochNanos,
                 endedAt = span.endEpochNanos,
-                type = if (span.mcpMethodName() != null) InteractionType.Mcp else InteractionType.Http
+                type = when {
+                    span.mcpMethodName() != null -> InteractionType.Mcp
+                    span.httpResponseStatusCode() != null -> InteractionType.Http
+                    else -> InteractionType.Local
+                }
             )
         }
     }
 
-    enum class InteractionType { Http, Mcp }
+    enum class InteractionType { Http, Mcp, Local }
 
     private fun SpanData.serviceName() = attributes[AttributeKey.stringKey("service.name")]
         ?: resource.attributes[AttributeKey.stringKey("service.name")]
