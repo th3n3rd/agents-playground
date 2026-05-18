@@ -32,7 +32,32 @@ class ScriptedChat(vararg responses: (ChatRequest) -> ChatResponse) : Chat {
     }
 }
 
+
+
 object Answers {
+    object OnUserMessage {
+        operator fun invoke(text: String, answer: () -> ChatResponse): (ChatRequest) -> ChatResponse = { request ->
+            if (request.messages.last() == LLMMessage.User(text)) answer()
+            else DontKnowHowToRespond()
+        }
+    }
+
+    object OnToolResult {
+        operator fun invoke(answer: (LLMMessage.ToolResult) -> ChatResponse): (ChatRequest) -> ChatResponse = { request ->
+            val last = request.messages.last()
+            if (last is LLMMessage.ToolResult) answer(last)
+            else DontKnowHowToRespond()
+        }
+    }
+
+    object OnAnyUserMessage {
+        operator fun invoke(answer: (LLMMessage.User) -> ChatResponse): (ChatRequest) -> ChatResponse = { request ->
+            val last = request.messages.last()
+            if (last is LLMMessage.User) answer(last)
+            else DontKnowHowToRespond()
+        }
+    }
+
     object RequireToolExecution {
         operator fun invoke(name: ToolName, arguments: Map<String, Any>) = ChatResponse(
             message = LLMMessage.Assistant(

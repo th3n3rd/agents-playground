@@ -1,5 +1,10 @@
 package com.example
 
+import com.example.Answers.OnAnyUserMessage
+import com.example.Answers.OnToolResult
+import com.example.Answers.OnUserMessage
+import com.example.Answers.RequireToolExecution
+import com.example.Answers.TextReply
 import com.natpryce.hamkrest.assertion.assertThat
 import com.natpryce.hamkrest.equalTo
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
@@ -9,77 +14,41 @@ import org.http4k.routing.reverseProxy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInfo
-import org.http4k.ai.llm.model.Message as LLMMessage
 
 class ShoppingListAcceptanceTests {
     private val mealApiServer = FakeMealApiServer()
 
     private val llm = ScriptedChat(
         // 1. CoordinatorAgent -> LLM: route to RecipesAgent first
-        { request ->
-            val lastMessage = request.messages.last()
-            if (lastMessage == LLMMessage.User("Generate the shopping list for spaghetti alla carbonara")) {
-                Answers.RequireToolExecution(ToolName.of(RecipesAgent.card.name), mapOf("query" to "Search recipes for Spaghetti alla Carbonara"))
-            } else {
-                Answers.DontKnowHowToRespond()
-            }
+        OnUserMessage("Generate the shopping list for spaghetti alla carbonara") {
+            RequireToolExecution(ToolName.of(RecipesAgent.card.name), mapOf("query" to "Search recipes for Spaghetti alla Carbonara"))
         },
         // 2. RecipesAgent -> LLM: what tool to execute
-        { request ->
-            val lastMessage = request.messages.last()
-            if (lastMessage == LLMMessage.User("Search recipes for Spaghetti alla Carbonara")) {
-                Answers.RequireToolExecution(SearchRecipesTool.definition.name, mapOf("query" to "Spaghetti alla Carbonara"))
-            } else {
-                Answers.DontKnowHowToRespond()
-            }
+        OnUserMessage("Search recipes for Spaghetti alla Carbonara") {
+            RequireToolExecution(SearchRecipesTool.definition.name, mapOf("query" to "Spaghetti alla Carbonara"))
         },
         // 3. RecipesAgent -> LLM: summarise recipe text (with ingredients)
-        { request ->
-            val lastMessage = request.messages.last()
-            if (lastMessage is LLMMessage.ToolResult) {
-                Answers.TextReply("Spaghetti alla Carbonara recipe: 320g Spaghetti, 6 Egg Yolks, Salt, 150g Bacon, 50g Pecorino, Black Pepper")
-            } else {
-                Answers.DontKnowHowToRespond()
-            }
+        OnToolResult {
+            TextReply("Spaghetti alla Carbonara recipe: 320g Spaghetti, 6 Egg Yolks, Salt, 150g Bacon, 50g Pecorino, Black Pepper")
         },
         // 4. CoordinatorAgent -> LLM: recipe text received, route to ShoppingListAgent
-        { request ->
-            val lastMessage = request.messages.last()
-            if (lastMessage is LLMMessage.ToolResult) {
-                Answers.RequireToolExecution(ToolName.of(ShoppingListAgent.card.name), mapOf("query" to """Generate a shopping list for the following recipe:\n\n${lastMessage.text}""""))
-            } else {
-                Answers.DontKnowHowToRespond()
-            }
+        OnToolResult { message ->
+            RequireToolExecution(ToolName.of(ShoppingListAgent.card.name), mapOf("query" to "Generate a shopping list for the following recipe:\n\n${message.text}"))
         },
         // 5. ShoppingListAgent -> LLM: parse recipe text, produce shopping list
-        { request ->
-            val lastMessage = request.messages.last()
-            if (lastMessage is LLMMessage.User) {
-                Answers.RequireToolExecution(
-                    FormatShoppingListTool.definition.name,
-                    mapOf("ingredients" to listOf("320g Spaghetti", "6 Egg Yolks", "Salt", "150g Bacon", "50g Pecorino", "Black Pepper"))
-                )
-            } else {
-                Answers.DontKnowHowToRespond()
-            }
+        OnAnyUserMessage {
+            RequireToolExecution(
+                FormatShoppingListTool.definition.name,
+                mapOf("ingredients" to listOf("320g Spaghetti", "6 Egg Yolks", "Salt", "150g Bacon", "50g Pecorino", "Black Pepper"))
+            )
         },
         // 6. ShoppingListAgent -> LLM: summarise shopping list text
-        { request ->
-            val lastMessage = request.messages.last()
-            if (lastMessage is LLMMessage.ToolResult) {
-                Answers.TextReply("Shopping list for spaghetti alla carbonara\n\n${lastMessage.text}")
-            } else {
-                Answers.DontKnowHowToRespond()
-            }
+        OnToolResult { message ->
+            TextReply("Shopping list for spaghetti alla carbonara\n\n${message.text}")
         },
         // 7. CoordinatorAgent -> LLM: relay ShoppingListAgent result back to user
-        { request ->
-            val lastMessage = request.messages.last()
-            if (lastMessage is LLMMessage.ToolResult) {
-                Answers.TextReply(lastMessage.text)
-            } else {
-                Answers.DontKnowHowToRespond()
-            }
+        OnToolResult { message ->
+            TextReply(message.text)
         }
     )
 
