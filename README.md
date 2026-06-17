@@ -34,3 +34,8 @@ This example demonstrates how to build and test an A2A agent using http4k.
     - I had to introduce a `FixedModelChat` abstraction to fix that, and provide a `ModelName.inherited()` extension to support that
   - Need to understand how I can instantiate A2A clients that support in-memory calls, or maybe everything should be simplified back to a function tool it needs to run independently
   - Some of the abstractions weren't advertised well, e.g. LLMTools, so it took a while before being able to simplify things out
+
+- Local LLMs
+  - Qwen2.5-7B: seems to support tools calling but it embeds them into the message content instead of the dedicated JSON field
+  - Llama-3.2-3B: dos not support tools calling
+  - Llama-3.1-8B: supports tools calling but a bit unstable

@@ -4,6 +4,7 @@ import dev.forkhandles.result4k.Failure
 import dev.forkhandles.result4k.Success
 import org.http4k.ai.llm.LLMError
 import org.http4k.ai.llm.LLMResult
+import org.http4k.ai.llm.OpenAICompatibleClient
 import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.ChatRequest
 import org.http4k.ai.llm.chat.ChatResponse
@@ -13,7 +14,15 @@ import org.http4k.ai.model.ModelName
 import org.http4k.ai.model.RequestId
 import org.http4k.ai.model.ResponseId
 import org.http4k.ai.model.ToolName
+import org.http4k.client.JavaHttpClient
+import org.http4k.connect.openai.OpenAI
+import org.http4k.connect.openai.OpenAIAction
 import org.http4k.connect.openai.OpenAIModels
+import org.http4k.core.HttpHandler
+import org.http4k.core.Uri
+import org.http4k.core.then
+import org.http4k.filter.ClientFilters.SetBaseUriFrom
+import org.http4k.filter.debug
 import java.util.*
 import org.http4k.ai.llm.model.Message as LLMMessage
 
@@ -101,4 +110,21 @@ object Answers {
             )
         )
     }
+}
+
+class LocalLanguageModelClient(private val http: HttpHandler = JavaHttpClient()) : OpenAICompatibleClient {
+    override fun invoke() = object : OpenAI {
+        override fun <R> invoke(action: OpenAIAction<R>) = action.toResult(http(action.toRequest()))
+    }
+
+    companion object {
+        fun ollama(debug: Boolean = false): LocalLanguageModelClient {
+            val http = SetBaseUriFrom(Uri.of("http://127.0.0.1:11434")).then(JavaHttpClient())
+            return LocalLanguageModelClient(if (debug) http.debug() else http)
+        }
+    }
+}
+
+object LocalLanguageModels {
+    val LLAMA31_8B = ModelName.of("llama3.1:8b")
 }

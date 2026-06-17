@@ -40,6 +40,7 @@ import org.http4k.ai.llm.chat.Chat
 import org.http4k.ai.llm.chat.ChatRequest
 import org.http4k.ai.llm.chat.ChatResponse
 import org.http4k.ai.llm.model.Content
+import org.http4k.ai.llm.model.Message.System
 import org.http4k.ai.llm.model.Message.User
 import org.http4k.ai.llm.model.ModelParams
 import org.http4k.ai.llm.tools.LLMTool
@@ -48,6 +49,7 @@ import org.http4k.ai.llm.tools.McpLLMTools
 import org.http4k.ai.llm.tools.ToolRequest
 import org.http4k.ai.llm.tools.ToolResponse
 import org.http4k.ai.model.ModelName
+import org.http4k.ai.model.Temperature
 import org.http4k.core.PolyHandler
 import org.http4k.core.then
 import org.http4k.filter.OpenTelemetryTracing
@@ -58,6 +60,7 @@ import org.http4k.ai.llm.model.Message as LLMMessage
 
 interface ReActAgent {
     val card: AgentCard
+    val systemPrompt: System?
 
     operator fun invoke(llm: Chat, tools: LLMTools = NoTools()): PolyHandler {
         return a2aJsonRpc(card, messageHandler = { request ->
@@ -68,7 +71,7 @@ interface ReActAgent {
             ResponseStream(sequence {
                 yield(inProgress(taskId, request, contextId))
 
-                llm.reactLoop(query, tools)
+                llm.reactLoop(User(query), systemPrompt, tools)
                     .peek { yield(completed(taskId, answer(it), contextId)) }
                     .peekFailure { yield(failed(taskId, answer(it), contextId)) }
             })
@@ -94,7 +97,7 @@ interface ReActAgent {
         contextId = contextId
     )
 
-    private fun Chat.reactLoop(query: String, tools: LLMTools): LLMResult<ChatResponse> {
+    private fun Chat.reactLoop(query: User, systemPrompt: System?, tools: LLMTools): LLMResult<ChatResponse> {
         val history = mutableListOf<LLMMessage>()
 
         fun act(toolRequests: List<ToolRequest>) = toolRequests
@@ -125,7 +128,8 @@ interface ReActAgent {
                 .flatMap { loop(it) }
         }
 
-        history.add(User(query))
+        systemPrompt?.let { history.add(it)  }
+        history.add(query)
 
         return reason().flatMap { loop(it) }
     }
@@ -273,6 +277,6 @@ fun ModelName.Companion.inherited() = ModelName.of("inherited")
 
 class FixedModelChat(private val llm: Chat, private val model: ModelName) : Chat {
     override fun invoke(request: ChatRequest): LLMResult<ChatResponse> {
-        return llm(request.copy(params = request.params.copy(modelName = model)))
+        return llm(request.copy(params = request.params.copy(modelName = model, temperature = Temperature.ZERO)))
     }
 }

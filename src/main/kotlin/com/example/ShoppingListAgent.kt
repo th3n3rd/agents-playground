@@ -6,6 +6,7 @@ import org.http4k.ai.a2a.model.AgentCard
 import org.http4k.ai.a2a.model.AgentSkill
 import org.http4k.ai.a2a.model.SkillId
 import org.http4k.ai.a2a.model.Version
+import org.http4k.ai.llm.model.Message
 import org.http4k.ai.llm.tools.LLMTool
 import org.http4k.ai.llm.tools.ToolResponse
 import org.http4k.ai.model.ToolName
@@ -13,10 +14,25 @@ import org.http4k.connect.model.MimeType
 import org.http4k.routing.bind
 
 object ShoppingListAgent : ReActAgent {
+    override val systemPrompt = Message.System("""
+        You are a shopping list generator.
+
+        Rules:
+        - Only use ingredients explicitly provided in the user message or tool result.
+        - Do not infer ingredients from a recipe name.
+        - Do not add optional, traditional, or common ingredients unless they are explicitly provided.
+        - If no ingredient list is provided, ask for the recipe ingredients instead of generating a list.
+        - Preserve quantities when present.
+        - Use metric units when possible.
+        - Combine duplicate ingredients when obvious.
+    """.trimIndent())
+
     override val card = AgentCard(
         name = "shopping-list-agent",
         version = Version.of("1.0.0"),
-        description = "An agent that generates a shopping list from a recipe description",
+        description = """
+            An agent that generates a shopping list from a full recipe description or an explicit ingredient list. Do not use this agent when you only have a recipe name
+        """.trimIndent(),
         capabilities = AgentCapabilities(streaming = true),
         defaultInputModes = listOf(MimeType.of("text/plain")),
         defaultOutputModes = listOf(MimeType.of("text/plain")),
@@ -24,7 +40,7 @@ object ShoppingListAgent : ReActAgent {
             AgentSkill(
                 id = SkillId.of("generate-shopping-list"),
                 name = "Generate Shopping List",
-                description = "Generate a shopping list from a recipe description",
+                description = "Generate a shopping list from a full recipe description or explicit ingredient list. Requires ingredients to already be known",
                 tags = listOf("shopping", "ingredients", "meal-planning")
             )
         )

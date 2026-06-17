@@ -57,7 +57,15 @@ class SearchRecipesAcceptanceTests {
         assertThat(answer, equalTo("""
         Found recipes for: Carbonara
 
-        1 Spaghetti alla Carbonara
+        1. Spaghetti alla Carbonara
+        Ingredients:
+        - 320g Spaghetti
+        - 6 Egg Yolks
+        - 150g Bacon
+        - 50g Pecorino
+        - Salt to taste
+        - Black Pepper to taste
+
         """.trimIndent()))
     }
 
